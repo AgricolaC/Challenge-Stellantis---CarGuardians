@@ -1,8 +1,0 @@
--r base.txt
-matplotlib
-seaborn
-plotly
-jupyter
-notebook
-papermill
-nbformat
