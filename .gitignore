@@ -6,6 +6,53 @@ __pycache__/
 # C extensions
 *.so
 
+# Local environments
+.venv/
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data folders
+data/raw/**
+!data/raw/.gitkeep
+data/processed/**
+!data/processed/.gitkeep
+data/house_processed/**
+!data/house_processed/.gitkeep
+
+
+# Notebooks cache / outputs
+notebooks/**/.ipynb_checkpoints/
+*.out.ipynb
+*.nbconvert.ipynb
+
+# Reports
+reports/figures/*.png
+reports/figures/*.jpg
+reports/figures/*.pdf
+reports/tmp/
+!reports/figures/.gitkeep
+reports/figures/*.xlxs
+
+# Docs build
+docs/_build/
+*.aux
+*.log
+*.toc
+
+# OS / IDE noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
 # Distribution / packaging
 .Python
 build/
