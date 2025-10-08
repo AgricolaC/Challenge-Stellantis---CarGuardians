@@ -17,13 +17,13 @@ python -c "import challenge; print('ok')"
 
 ## Modules
 
-### src/challenge/io.py : TDMS/Excel readers
+  - ***src/challenge/io.py*** : TDMS/Excel readers
 
-### src/challenge/preprocess.py : cleaning & basic features
+  - ***src/challenge/preprocess.py*** : cleaning & basic features
 
-### src/challenge/viz.py : quick plots
+  - ***src/challenge/viz.py*** : quick plots
 
-## src/challenge/test_preprocess.py : tests after cleaning
+  - ***src/challenge/test_preprocess.py*** : tests after cleaning
 
 ## How to Initialize
 ```bash
