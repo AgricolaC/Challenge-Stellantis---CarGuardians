@@ -18,13 +18,14 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Data folders
+# Data (keep folders, ignore contents)
 data/raw/**
 !data/raw/.gitkeep
 data/processed/**
 !data/processed/.gitkeep
 data/house_processed/**
 !data/house_processed/.gitkeep
+
 
 
 # Notebooks cache / outputs
