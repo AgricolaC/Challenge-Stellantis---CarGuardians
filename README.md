@@ -1,17 +1,17 @@
-# Challenge@Stellantis – Minimal Modular Repository
+# APS Failure Detection — Scania Trucks (Challenge@Stellantis)
 
-This repository hosts the **Challenge@Stellantis** project for explainable diagnostics and novelty detection in automotive systems.  
-The goal is to build a **clean, modular, and reproducible codebase** where all team members can ingest, preprocess, visualize, and analyze the dataset collaboratively.
+This repository hosts the **APS (Air Pressure System) Failure Detection** project based on Scania Trucks data.  
+The goal is to build a **clean, modular, and reproducible ML codebase** for fault detection and explainability in APS systems.
 
 ---
 
 ## 🎯 Goal
-Ingest → Preprocess (optional if using provided processed files) → Visualize → Test  
-All within a minimal, Pythonic structure designed for easy iteration and CI/CD integration.
+Ingest → Preprocess → Feature Engineering → Train → Evaluate → Explain  
+All within a minimal, Pythonic structure designed for collaborative development and CI/CD integration.
 
 ---
 
-## Quickstart
+## 🚀 Quickstart
 
 ```bash
 # Create a virtual environment
@@ -24,89 +24,121 @@ pip install -r requirements.txt
 # Run tests to confirm setup
 pytest -q
 
-# (Optional) Explore the notebooks
+# (Optional) Explore notebooks
 jupyter notebook notebooks/
 ```
+## 📦 Data
 
-## Data
+Source: Scania CV AB (2016) APS dataset — operational data from heavy-truck air-pressure systems.
+Summary:
 
-The dataset consists of TDMS and Excel files describing engine combustion cycles and derived measurements.
+~60,000 training samples (≈59k negative, ≈1k positive)
 
-Data folders are divided to ensure version control hygiene:
+~16,000 test samples
 
+171 anonymized numeric attributes (sensor counters & histograms)
+
+Missing values marked as na
+
+Target column: class (1 = positive, 0 = negative)
+
+Official cost metric:
+Total_cost=10×FP+500×FN
+
+Repository layout for datasets:
 ```bash
 data/
-├─ raw/              # Original raw files (TDMS, raw spreadsheets) — LFS tracked
-├─ processed/        # Provided processed files from the dataset — LFS tracked
-└─ house_processed/  # In-house processed or generated artifacts — small, ≤10 MB
+├─ raw/              # Original CSVs — LFS tracked
+├─ processed/        # Cleaned/preprocessed datasets — LFS tracked
+└─ house_processed/  # In-house artifacts (≤ 10 MB): features, models, reports
 ```
 
-Notes:
-- Large files (e.g. .tdms, .xlsx, .pdf, .docx) are tracked with Git LFS.
-- Use data/house_processed/ for any derived results created by your scripts or notebooks.
-- The repository avoids committing heavy files directly.
+## Notes
 
-## Modules
-The code lives under /src/challenge/, designed to be installable and importable as a Python package:
-| Module            | Purpose                                                                                                                          |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`ingest/`**     | Readers for TDMS and Excel data. Handles loading of sensor signals, injector data, and averages.                                 |
-| **`preprocess/`** | Optional preprocessing pipeline (cleaning, normalization, or reformatting). Can be skipped if using the provided processed data. |
-| **`novelty/`**    | Novelty-detection algorithms such as PCA- and Mahalanobis-based indices.                                                         |
-| **`visualize/`**  | Quick plotting utilities for EDA and reporting (pressure traces, knock signals, feature scatterplots, etc.).                     |
-| **`utils/`**      | Shared helpers (paths, environment variables, and constants).                                                                    |
-                                                              |
-Testing lives under /src/tests/, with lightweight placeholders ready for student expansion.
+Large files (CSV, models >10MB) must be tracked with Git LFS.
 
-## How To Initialize
+Put any generated artifacts from scripts/notebooks under data/house_processed/.
+
+Avoid committing heavy files directly to Git history.
+
+## 🧩 Modules
+
+All code lives under src/challenge/ as an installable package.
+
+Module	Purpose
+ingest/	Load Scania APS CSVs (aps_failure_training_set.csv, aps_failure_test_set.csv) + missing-value handling.
+preprocess/	Cleaning, imputation, scaling, train/test schema consistency.
+features/	Feature engineering: meta-features, ratios, PCA transforms.
+novelty/	Models & scoring (LogReg, RF, XGBoost, IsolationForest) + cost evaluation utility.
+visualize/	EDA helpers: PCA plots, confusion matrices, feature importance.
+utils/	Configs, constants, paths, small helpers.
+
+Tests live in src/tests/ with slim placeholders to grow with the project.
+
+## 🧰 How To Initialize
 ```bash
 # Clone repository
 git clone <your_repo_url>
-cd challenge-stellantis
+cd aps-failure-scania
 
-# Initialize Git LFS (needed once per machine)
+# Initialize Git LFS (once per machine)
 git lfs install
 
-# Pull large data files
+# (If needed) Pull large data files
 git lfs pull
 
-# Set up environment and dependencies
+# Set up environment & dependencies
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Verify installation and run tests
+# Verify installation
 pytest -q
 ```
+---
 
-## Workflow Overview
+## 🔄 Workflow Overview
 
-1. Ingest: Use ingest/ loaders to read TDMS or Excel data into DataFrames or NumPy arrays.
+Ingest – Load & sanity-check CSVs (types, missingness, target balance).
 
-2. Preprocess (optional): Apply cleaning or feature extraction if you generate in-house processed datasets.
+Preprocess – Impute, scale, and align train/test schemas; manage class imbalance.
 
-3. Visualize: Explore patterns, anomalies, and cycle variability in notebooks/01_eda.ipynb.
+Feature Engineering – Derive statistical features & PCA components.
 
-4. Novelty Detection: Implement and test PCA or Mahalanobis-based indices to identify deviations.
+Train – Train baseline & advanced models (LogReg, RF, XGBoost, IsolationForest).
 
-5. Test: Add or expand tests in /src/tests/ to maintain reliability and CI consistency.
+Evaluate – Report Scania cost metric, confusion matrix, precision/recall.
 
+Explain – Use SHAP/feature importance to interpret model behavior.
 
-## Continuous Integration
+Test – Grow src/tests/ to keep the pipeline robust and CI-friendly.
 
-Each push or pull request triggers GitHub Actions (CI) which:
+## ✅ Continuous Integration
 
-- Installs dependencies
+GitHub Actions runs on each push/PR to:
 
-- Runs tests automatically (pytest)
+Install dependencies
 
-- Verifies that all code executes and imports cleanly
+Run tests (pytest)
 
-- You’ll see a ✅ or ❌ badge under your PRs, keeping the main branch stable.
+Validate imports and basic pipeline execution
 
-## Conventions
+Report build status (✅/❌) on PRs to keep main stable
 
-- Use Python ≥3.10
+## 📏 Conventions
 
-- Keep notebooks lightweight; core logic belongs in /src/
+Python 3.10+
 
-- Add clear docstrings and small, modular commits
+Keep notebooks light; put core logic in src/
+
+Small, focused commits with clear docstrings
+
+Track large datasets/models via Git LFS
+
+## 📚 Project Notes
+
+Cost-sensitive evaluation is central (high FN penalty vs FP).
+
+Class imbalance requires careful handling (resampling, class weights, threshold tuning).
+
+Keep house_processed/ artifacts small for easy CI and reviews.
+
