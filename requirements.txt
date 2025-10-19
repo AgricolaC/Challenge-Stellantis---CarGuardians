@@ -5,3 +5,4 @@ scikit-learn>=1.5
 matplotlib>=3.9
 nptdms>=1.8      # TDMS reader
 pytest>=8.2
+ucimlrepo
