@@ -11,24 +11,16 @@ from sklearn.metrics import (
     roc_auc_score, roc_curve, f1_score, confusion_matrix, recall_score, precision_score
 )
 from sklearn.preprocessing import StandardScaler
-from imblearn.over_sampling import SMOTE  # We'll use this to give an 'smote' option
+from imblearn.over_sampling import SMOTE
 from copy import deepcopy
 import time
 from contextlib import contextmanager
 from typing import Dict, Any, Optional, Iterable
 from tqdm.auto import tqdm
 from sklearn.experimental import enable_iterative_imputer
-
-
-# --- NEW IMPORTS ---
 from challenge.data.preprocess import ScaniaPreprocessor
 from challenge.data.balancing import balance_with_copula
-# --- END NEW IMPORTS ---
 
-#
-# --- YOUR HELPER FUNCTIONS (UNCHANGED) ---
-# All your great helpers are preserved
-#
 
 @contextmanager
 def timer() -> Iterable[float]:
@@ -104,109 +96,137 @@ def _metrics_at_threshold(
         "Cost": float(cost_fp * fp + cost_fn * fn),
     }
 
-#
-# --- MODIFIED 'cv_cost' FUNCTION ---
-# This is now rebuilt to use the "golden pipeline"
-#
+from joblib import Parallel, delayed
+
+def _process_fold(
+    fold, tr_idx, va_idx, X, y, model, 
+    cost_fp, cost_fn, sampler, sampling_strategy, 
+    tune_threshold, samplers
+):
+    """
+    Helper function to process a single CV fold.
+    """
+    X_tr_raw = _slice_xy(X, tr_idx)
+    X_va_raw = _slice_xy(X, va_idx)
+    y_tr, y_va = y[tr_idx], y[va_idx]
+
+    t0 = time.perf_counter()
+    
+    # --- 1. Imputation (Golden Pipeline Step 1) ---
+    preprocessor = ScaniaPreprocessor()
+    X_tr_imputed = preprocessor.fit_transform(X_tr_raw)
+    X_va_imputed = preprocessor.transform(X_va_raw)
+    
+    # --- 2. Balancing (Golden Pipeline Step 2) ---
+    X_tr_balanced, y_tr_balanced = X_tr_imputed, y_tr
+    if sampler is not None:
+        if sampler not in samplers:
+            raise ValueError(f"Unknown sampler: {sampler}. Use 'copula' or 'smote'.")
+        
+        # print(f"\nFold {fold}: Balancing with {sampler}...") # Avoid printing in parallel
+        if sampler == 'copula':
+            # Pass sampling_strategy if it's a float, otherwise default to 1.0 if 'auto' (copula needs float)
+            strategy = sampling_strategy if isinstance(sampling_strategy, float) else 1.0
+            X_tr_balanced, y_tr_balanced = balance_with_copula(X_tr_imputed, y_tr, sampling_strategy=strategy)
+        else:
+            X_tr_balanced, y_tr_balanced = samplers[sampler].fit_resample(X_tr_imputed, y_tr)
+    
+    # --- 3. Scaling (Golden Pipeline Step 3) ---
+    scaler = StandardScaler()
+    X_tr_scaled = scaler.fit_transform(X_tr_balanced)
+    X_va_scaled = scaler.transform(X_va_imputed) # Scale val set with train stats
+    
+    # --- 4. Training ---
+    model_fold = deepcopy(model)
+    model_fold.fit(X_tr_scaled, y_tr_balanced)
+    fit_t = time.perf_counter() - t0
+
+    t1 = time.perf_counter()
+    prob = _scores(model_fold, X_va_scaled)
+    pred_t = time.perf_counter() - t1
+
+    auc = roc_auc_score(y_va, prob)
+
+    if tune_threshold:
+        # Find the best threshold to minimize cost
+        best_thr, best_cost = _best_threshold_by_cost(y_va, prob, cost_fp, cost_fn)
+        y_pred = (prob >= best_thr).astype(int)
+    else:
+        # Use a fixed 0.5 threshold
+        best_thr = 0.5
+        y_pred = (prob >= best_thr).astype(int)
+        # Calculate the cost at this fixed 0.5 threshold
+        tn, fp, fn, tp = confusion_matrix(y_va, y_pred, labels=[0, 1]).ravel()
+        best_cost = float(cost_fp * fp + cost_fn * fn)
+
+    f1 = f1_score(y_va, y_pred, average="macro")
+    
+    return {
+        "auc": auc,
+        "cost": best_cost,
+        "thr": best_thr,
+        "f1": f1,
+        "fit_time": fit_t,
+        "pred_time": pred_t
+    }
 
 def cv_cost(
     model,
     X, y,
     *,
+    tune_threshold: bool = True,
     cost_fp: int = 10,
     cost_fn: int = 500,
     folds: int = 5,
-    sampler: Optional[str] = None,  # 'copula', 'smote', or None
+    sampler: Optional[str] = None,
+    sampling_strategy: Union[float, str] = 'auto',
     verbose: bool = True,
-    return_threshold: bool = False,
+    return_threshold: bool = True,
     random_state: int = 42,
-    show_progress: bool = True,        
+    show_progress: bool = True,
+    n_jobs: int = -1 # <-- New argument
 ) -> Dict[str, Any]:
     """
     Cross-validates the full "Impute -> Balance -> Scale -> Train" pipeline.
     
-    X and y are expected to be the *raw* (or K-S selected) data, *not*
-    pre-imputed or pre-scaled.
+    The 'tune_threshold' flag controls whether to find the optimal
+    cost-based threshold (True) or use a fixed 0.5 threshold (False).
     """
     y = _to_array(y)
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state)
 
-    aucs, best_costs, best_thresholds, f1s = [], [], [], []
-    fold_times_fit, fold_times_pred = [], []
-    
     # Define samplers
     samplers = {
-        'smote': SMOTE(random_state=random_state, k_neighbors=5), # k_neighbors=5 is low, good for small minority class
+        'smote': SMOTE(random_state=random_state, k_neighbors=5, sampling_strategy=sampling_strategy), 
         'copula': balance_with_copula # This is our function
     }
 
-    fold_iter = skf.split(X, y)
-    if show_progress:
-        fold_iter = tqdm(fold_iter, total=folds, desc="CV folds", leave=False)
+    # Handle "No Sampling" string gracefully
+    if sampler == "No Sampling":
+        sampler = None
 
-    for fold, (tr_idx, va_idx) in enumerate(fold_iter, 1):
-        
-        X_tr_raw = _slice_xy(X, tr_idx)
-        X_va_raw = _slice_xy(X, va_idx)
-        y_tr, y_va = y[tr_idx], y[va_idx]
+    fold_iter = list(skf.split(X, y))
+    
+    if verbose:
+        print(f"Running {folds}-fold CV with n_jobs={n_jobs}...")
 
-        t0 = time.perf_counter()
-        
-        # --- 1. Imputation (Golden Pipeline Step 1) ---
-        preprocessor = ScaniaPreprocessor()
-        X_tr_imputed = preprocessor.fit_transform(X_tr_raw)
-        X_va_imputed = preprocessor.transform(X_va_raw)
-        
-        # --- 2. Balancing (Golden Pipeline Step 2) ---
-        X_tr_balanced, y_tr_balanced = X_tr_imputed, y_tr
-        if sampler is not None:
-            if sampler not in samplers:
-                raise ValueError(f"Unknown sampler: {sampler}. Use 'copula' or 'smote'.")
-            
-            print(f"\nFold {fold}: Balancing with {sampler}...")
-            if sampler == 'copula':
-                X_tr_balanced, y_tr_balanced = balance_with_copula(X_tr_imputed, y_tr)
-            else:
-                X_tr_balanced, y_tr_balanced = samplers[sampler].fit_resample(X_tr_imputed, y_tr)
-        
-        # --- 3. Scaling (Golden Pipeline Step 3) ---
-        scaler = StandardScaler()
-        X_tr_scaled = scaler.fit_transform(X_tr_balanced)
-        X_va_scaled = scaler.transform(X_va_imputed) # Scale val set with train stats
-        
-        # --- 4. Training ---
-        model_fold = deepcopy(model)
-        model_fold.fit(X_tr_scaled, y_tr_balanced)
-        fit_t = time.perf_counter() - t0
+    # Run folds in parallel
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(_process_fold)(
+            fold, tr_idx, va_idx, X, y, model, 
+            cost_fp, cost_fn, sampler, sampling_strategy, 
+            tune_threshold, samplers
+        ) 
+        for fold, (tr_idx, va_idx) in enumerate(fold_iter, 1)
+    )
 
-        t1 = time.perf_counter()
-        # Use your robust _scores function
-        prob = _scores(model_fold, X_va_scaled)
-        pred_t = time.perf_counter() - t1
-
-        fold_times_fit.append(fit_t)
-        fold_times_pred.append(pred_t)
-
-        # Use your robust _best_threshold function
-        best_thr, best_cost = _best_threshold_by_cost(y_va, prob, cost_fp, cost_fn)
-        auc = roc_auc_score(y_va, prob)
-        y_pred = (prob >= best_thr).astype(int)
-        f1 = f1_score(y_va, y_pred, average="macro")
-
-        aucs.append(auc)
-        best_costs.append(best_cost)
-        best_thresholds.append(best_thr)
-        f1s.append(f1)
-
-        if show_progress:
-            fold_iter.set_postfix({
-                "AUC": f"{auc:.3f}",
-                "F1": f"{f1:.3f}",
-                "Cost": f"{best_cost:.0f}",
-                "thr": f"{best_thr:.3f}",
-                "fit": fmt_secs(fit_t),
-                "pred": fmt_secs(pred_t),
-            })
+    # Aggregate results
+    aucs = [r['auc'] for r in results]
+    best_costs = [r['cost'] for r in results]
+    best_thresholds = [r['thr'] for r in results]
+    f1s = [r['f1'] for r in results]
+    fold_times_fit = [r['fit_time'] for r in results]
+    fold_times_pred = [r['pred_time'] for r in results]
 
     out = {
         "AUC_mean": float(np.mean(aucs)),
@@ -235,10 +255,8 @@ def cv_cost(
 
 
 #
-# --- MODIFIED 'evaluate_on_test' FUNCTION ---
-# This is also rebuilt to use the "golden pipeline"
+# --- 'evaluate_on_test' FUNCTION (with SMOTE fix) ---
 #
-
 def evaluate_on_test(
     model,
     X_train, y_train,
@@ -248,28 +266,29 @@ def evaluate_on_test(
     cost_fp: int = 10,
     cost_fn: int = 500,
     sampler: Optional[str] = None, # 'copula', 'smote', or None
+    sampling_strategy: Union[float, str] = 'auto', 
     tune_if_none: bool = True,
     random_state: int = 42,
     verbose: bool = True,
 ) -> Dict[str, Any]:
     """
     Evaluates the full pipeline on the test set.
-    
-    1. Splits train into train/val for threshold tuning.
-    2. Runs full (Impute->Balance->Scale->Train) pipeline on train/val.
-    3. Finds best threshold on val.
-    4. Re-runs full (Impute->Balance->Scale->Train) pipeline on *all* train data.
-    5. Evaluates on test data using the tuned threshold.
     """
     y_train = _to_array(y_train)
     y_test  = _to_array(y_test)
     
     samplers = {
-        'smote': SMOTE(random_state=random_state, k_neighbors=5, n_jobs=-1),
+        'smote': SMOTE(random_state=random_state, k_neighbors=5, sampling_strategy=sampling_strategy), 
         'copula': balance_with_copula
     }
 
+    # Handle "No Sampling" string gracefully
+    if sampler == "No Sampling":
+        sampler = None
+
     # --- Threshold tuning step ---
+    # This logic is already correct. If tune_if_none=False, it skips
+    # this block and threshold remains None.
     if threshold is None and tune_if_none:
         if verbose:
             print("--- Tuning Threshold on Validation Set ---")
@@ -293,7 +312,8 @@ def evaluate_on_test(
             if sampler not in samplers:
                 raise ValueError(f"Unknown sampler: {sampler}.")
             if sampler == 'copula':
-                X_tr_balanced, y_tr_balanced = balance_with_copula(X_tr_imputed, y_tr)
+                strategy = sampling_strategy if isinstance(sampling_strategy, float) else 1.0
+                X_tr_balanced, y_tr_balanced = balance_with_copula(X_tr_imputed, y_tr, sampling_strategy=strategy)
             else:
                 X_tr_balanced, y_tr_balanced = samplers[sampler].fit_resample(X_tr_imputed, y_tr)
 
@@ -330,7 +350,8 @@ def evaluate_on_test(
             raise ValueError(f"Unknown sampler: {sampler}.")
         print(f"Final fit: Balancing with {sampler}...")
         if sampler == 'copula':
-            X_train_balanced, y_train_balanced = balance_with_copula(X_train_imputed, y_train)
+            strategy = sampling_strategy if isinstance(sampling_strategy, float) else 1.0
+            X_train_balanced, y_train_balanced = balance_with_copula(X_train_imputed, y_train, sampling_strategy=strategy)
         else:
             X_train_balanced, y_train_balanced = samplers[sampler].fit_resample(X_train_imputed, y_train)
 

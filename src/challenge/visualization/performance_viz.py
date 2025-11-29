@@ -54,3 +54,54 @@ def plot_cost_threshold_curve(y_true, y_prob, cost_fp=10, cost_fn=500, label=Non
     ax.grid(True)
     
     return ax, (best_thresh, min_cost)
+
+
+# Experiment Results Visualization
+def plot_experiment_results(results_df: pd.DataFrame):
+    """
+    Generates summary plots for the experiment results DataFrame.
+    """
+    if results_df.empty:
+        print("No results to plot.")
+        return
+
+    # 1. Cost Comparison Bar Chart
+    plt.figure(figsize=(12, 6))
+    sns.barplot(data=results_df, x='cost_mean', y='run_name', hue='model', orient='h')
+    plt.title("Mean Cost by Experiment Run")
+    plt.xlabel("Mean Cost")
+    plt.ylabel("Experiment Run")
+    plt.tight_layout()
+    plt.show()
+
+    # 2. Fit Time vs Cost Scatter Plot
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(
+        data=results_df, 
+        x='fit_time_mean', 
+        y='cost_mean', 
+        hue='model', 
+        style='sampler', 
+        s=100
+    )
+    plt.title("Fit Time vs Mean Cost")
+    plt.xlabel("Mean Fit Time (s)")
+    plt.ylabel("Mean Cost")
+    plt.grid(True)
+    plt.show()
+
+    # 3. AUC vs Cost Scatter Plot
+    plt.figure(figsize=(10, 6))
+    sns.scatterplot(
+        data=results_df, 
+        x='auc_mean', 
+        y='cost_mean', 
+        hue='model', 
+        style='feature_set', 
+        s=100
+    )
+    plt.title("AUC vs Mean Cost")
+    plt.xlabel("Mean AUC")
+    plt.ylabel("Mean Cost")
+    plt.grid(True)
+    plt.show()
