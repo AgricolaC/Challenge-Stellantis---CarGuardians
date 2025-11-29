@@ -106,6 +106,7 @@ def get_feature_pvalues(X: pd.DataFrame, y: pd.Series) -> pd.Series:
             
     return pd.Series(p_values, name="p_value").sort_values()
 
+
 def select_features_mutual_info(X: pd.DataFrame, y: pd.Series, top_n: int = 50) -> list[str]:
     """
     Selects top_n features based on Mutual Information.
@@ -119,9 +120,6 @@ def select_features_mutual_info(X: pd.DataFrame, y: pd.Series, top_n: int = 50) 
     selected = mi_series.sort_values(ascending=False).head(top_n).index.tolist()
     print(f"Selected top {top_n} features by Mutual Information.")
     return selected
-
-
-
 
 def engineer_histogram_features(X: pd.DataFrame, hist_groups: dict) -> pd.DataFrame:
     """
