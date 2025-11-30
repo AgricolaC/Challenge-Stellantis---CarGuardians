@@ -1,0 +1,115 @@
+from __future__ import annotations
+import pandas as pd
+from copy import deepcopy
+from typing import Dict, Any, Tuple, List, Optional, Union
+from challenge.modelling.train_eval import cv_cost
+
+def run_experiment_grid(
+    models: Dict[str, Any],
+    feature_sets: Dict[str, Tuple[pd.DataFrame, pd.DataFrame]],
+    samplers: Dict[str, Optional[str]],
+    tuning_strategies: Dict[str, bool],
+    sampling_percentages: List[float],
+    y_train: pd.Series,
+    n_cv_splits: int = 4,
+    random_state: int = 42,
+    verbose: bool = True
+) -> pd.DataFrame:
+    """
+    Runs a grid of experiments over models, feature sets, samplers, and tuning strategies.
+    
+    Args:
+        models: Dictionary of model names to model objects.
+        feature_sets: Dictionary of feature set names to (X_train, X_test) tuples.
+        samplers: Dictionary of sampler names to sampler keys (e.g., 'smote', 'copula', None).
+        tuning_strategies: Dictionary of tuning strategy names to boolean (True for tuned threshold).
+        sampling_percentages: List of sampling percentages to test for samplers.
+        y_train: Training labels.
+        n_cv_splits: Number of CV splits.
+        random_state: Random state.
+        verbose: Whether to print progress.
+        
+    Returns:
+        pd.DataFrame containing the results of all experiments.
+    """
+    results_list = []
+    
+    if verbose:
+        print("--- STARTING EXPERIMENT MATRIX ---")
+        
+    # Outer loop: Iterate over models
+    for model_name, model_obj in models.items():
+        for fset_name, (X_train_data, _) in feature_sets.items():
+            for sampler_name, sampler_key in samplers.items():
+                
+                # Define the configurations to run for this sampler
+                configs = []
+                if sampler_key is not None:
+                    # If sampler is used, iterate over percentages
+                    for pct in sampling_percentages:
+                        configs.append({'pct': pct, 'pct_name': f" | Sampling Percentage: {pct}"})
+                else:
+                    # If no sampler, run once with pct=None
+                    configs.append({'pct': None, 'pct_name': ""})
+                    
+                for config in configs:
+                    sampling_percentage = config['pct']
+                    pct_name_suffix = config['pct_name']
+                    
+                    for tuning_name, tuning_bool in tuning_strategies.items():
+                        run_name = f"{model_name} | {fset_name} | {sampler_name} | {tuning_name}{pct_name_suffix}"
+                        
+                        if verbose:
+                            print(f"\n=====================================")
+                            print(f"RUNNING: {run_name}")
+                            print(f"=====================================")
+                        
+                        model = deepcopy(model_obj)
+                        
+                        # Prepare arguments for cv_cost
+                        cv_kwargs = {
+                            'model': model,
+                            'X': X_train_data,
+                            'y': y_train,
+                            'sampler': sampler_key,
+                            'tune_threshold': tuning_bool,
+                            'folds': n_cv_splits,
+                            'show_progress': True,
+                            'verbose': True,
+                            'random_state': random_state,
+                        }
+                        
+                        # Only add sampling_strategy if a sampler is used
+                        if sampler_key is not None:
+                            cv_kwargs['sampling_strategy'] = sampling_percentage
+                        
+                        # Run Cross-Validation
+                        try:
+                            cv_results = cv_cost(**cv_kwargs)
+                            
+                            # Store results
+                            result_entry = {
+                                'model': model_name,
+                                'feature_set': fset_name,
+                                'sampler': sampler_name,
+                                'tuning': tuning_name,
+                                'cost_mean': cv_results['Cost_mean'],
+                                'cost_std': cv_results['Cost_std'],
+                                'auc_mean': cv_results['AUC_mean'],
+                                'f1_mean': cv_results['F1_mean'],
+                                'fit_time_mean': cv_results['fit_time_mean'],
+                                'run_name': run_name
+                            }
+                            
+                            if sampling_percentage is not None:
+                                result_entry['sampling_percentage'] = sampling_percentage
+                                
+                            results_list.append(result_entry)
+                            
+                        except Exception as e:
+                            print(f"Error running {run_name}: {e}")
+                            
+    if verbose:
+        print("\n--- EXPERIMENT MATRIX COMPLETE ---")
+        
+    return pd.DataFrame(results_list)
