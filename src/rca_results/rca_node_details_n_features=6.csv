@@ -1,0 +1,11 @@
+Algo,Node,Role,PyMC_Mean,PyMC_Odds_Ratio
+PC,cb_000,Unconnected,,
+PC,ck_000,Root,3.666,39.09521183384152
+PC,ag_009,Root,-0.281,0.755028335480208
+PC,cn_001,Root,0.306,1.3579823065478924
+PC,class,Target,,
+LiNGAM,cb_000,Mediator,,
+LiNGAM,ck_000,Mediator,,
+LiNGAM,ag_009,Mediator,,
+LiNGAM,cn_001,Root,0.962,2.6169250932469144
+LiNGAM,class,Target,,
