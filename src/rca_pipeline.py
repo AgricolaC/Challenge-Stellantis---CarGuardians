@@ -39,7 +39,6 @@ from challenge.data.ingest import load_data
 from challenge.data.feature_selection import select_features_ks
 
 # --- 1. Data Engineering (Robust) ---
-
 def load_and_prep_data():
     print("--- [1] Data Engineering ---")
     X_raw, y_raw = load_data('dataset/', 'aps_failure_training_set.csv')
@@ -72,36 +71,6 @@ def load_and_prep_data():
     
     return X_clean_imp, y_raw
 
-def robust_imputation(X_raw):
-    # This function was called in the user's main but defined inside load_and_prep_data in the snippet
-    # The user's main calls load_and_prep_data then robust_imputation
-    # But load_and_prep_data ALREADY does robust imputation in the snippet.
-    # I will adjust main to use the returned X_clean from load_and_prep_data
-    # Or I can just return X_clean from load_and_prep_data and skip the extra call.
-    # The user's snippet main:
-    # X_raw, y_raw = load_and_prep_data()
-    # X_clean = robust_imputation(X_raw)
-    # But load_and_prep_data returns X_clean_imp already.
-    # I will assume load_and_prep_data returns the clean data and I don't need robust_imputation separate function.
-    # Wait, the user's snippet has:
-    # def main():
-    #    X_raw, y_raw = load_and_prep_data()
-    #    X_clean = robust_imputation(X_raw)
-    # But robust_imputation is NOT defined in the snippet outside of load_and_prep_data logic.
-    # Actually, looking at the snippet, load_and_prep_data returns X_clean_imp.
-    # So X_raw in main will be X_clean_imp.
-    # So calling robust_imputation(X_raw) again would be redundant or wrong if it expects raw data.
-    # I will define robust_imputation as a pass-through or just remove the call in main if I can.
-    # But I should stick to the snippet as much as possible.
-    # Let's look closely at the snippet's main:
-    # def main():
-    #    X_raw, y_raw = load_and_prep_data()
-    #    X_clean = robust_imputation(X_raw)
-    # And the snippet does NOT define robust_imputation.
-    # This implies I should define it or the user made a mistake.
-    # Given load_and_prep_data already does imputation, I will make robust_imputation just return the input, or better, fix main.
-    # I'll fix main to: X_clean, y_raw = load_and_prep_data()
-    pass
 
 # --- 2. Feature Selection (Expanded n=14) ---
 
@@ -155,7 +124,7 @@ def get_consensus_features(X, y, n_features=14):
 
 def run_pc_algorithm(X, y, features):
     print("\n--- [Engine A] PC Algorithm ---")
-    est = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='uniform')
+    est = KBinsDiscretizer(n_bins=20, encode='ordinal', strategy='quantile')
     df = X[features].copy()
     cont_cols = [c for c in df.columns if df[c].nunique() > 5]
     if cont_cols:
