@@ -92,6 +92,45 @@ def balance_with_copula(X_train: pd.DataFrame, y_train: Union[pd.Series, np.ndar
     # Generate new samples
     synthetic_samples = synthesizer.sample(num_rows=num_to_synthesize)
     
+    # --- Post-Processing: Fix Physics & Logic Violations ---
+    print("Post-processing synthetic data to enforce physical constraints...")
+    
+    # 1. Fix Binary Flags (e.g., _is_missing)
+    # The Copula generates floats like 0.42. We must round them.
+    binary_cols = [c for c in data.columns if 'is_missing' in c]
+    # Also check for other binary columns (0/1 only)
+    for col in data.columns:
+        if col not in binary_cols and col != target_col:
+            unique_vals = data[col].dropna().unique()
+            if len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1, 0.0, 1.0}):
+                 binary_cols.append(col)
+    
+    binary_cols = list(set(binary_cols)) # Remove duplicates
+    
+    for col in binary_cols:
+        if col in synthetic_samples.columns:
+            synthetic_samples[col] = synthetic_samples[col].round().clip(0, 1)
+
+    # 2. Fix Integer Counts (Histograms)
+    # Counts cannot be negative or fractional
+    # We assume float columns that are not binary are potentially histograms or continuous vars
+    # A safe heuristic for this dataset: if input was integer, output should be integer.
+    # However, data frame might have been converted to float during SimpleImputer.
+    # We'll rely on the column naming convention for histograms (ends in digit) or just enforce non-negativity for all.
+    
+    for col in synthetic_samples.columns:
+        if col == target_col or col in binary_cols:
+            continue
+            
+        # Enforce non-negativity for physical sensors/counts
+        synthetic_samples[col] = synthetic_samples[col].apply(lambda x: max(0, x))
+        
+        # If it looks like a histogram bin (ends in digit) or was integer-like, we could round.
+        # For now, non-negative is the most critical physics fix.
+        # Let's also round if it's a histogram bin to keep it as a 'count'
+        if col[-1].isdigit(): # ag_000, etc.
+             synthetic_samples[col] = synthetic_samples[col].round()
+
     # Combine original data with synthetic samples
     data_resampled = pd.concat([data, synthetic_samples], ignore_index=True)
     

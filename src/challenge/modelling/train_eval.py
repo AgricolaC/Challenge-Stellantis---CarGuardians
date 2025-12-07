@@ -1,5 +1,6 @@
 from __future__ import annotations
 import numpy as np
+import pandas as pd
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Tuple, List, Union
 
@@ -133,8 +134,18 @@ def _process_fold(
     
     # --- 3. Scaling (Golden Pipeline Step 3) ---
     scaler = StandardScaler()
-    X_tr_scaled = scaler.fit_transform(X_tr_balanced)
-    X_va_scaled = scaler.transform(X_va_imputed) # Scale val set with train stats
+    # Scikit-learn scaler returns numpy array, striping column names.
+    # We reconstruct DataFrame to allow downstream selectors (like KruskalSelector) to use column names.
+    _X_tr_scaled_np = scaler.fit_transform(X_tr_balanced)
+    _X_va_scaled_np = scaler.transform(X_va_imputed)
+    
+    # Check if input was DataFrame to preserve columns
+    if hasattr(X_tr_balanced, 'columns'):
+        X_tr_scaled = pd.DataFrame(_X_tr_scaled_np, columns=X_tr_balanced.columns, index=X_tr_balanced.index)
+        X_va_scaled = pd.DataFrame(_X_va_scaled_np, columns=X_tr_balanced.columns, index=X_va_imputed.index)
+    else:
+        X_tr_scaled = _X_tr_scaled_np
+        X_va_scaled = _X_va_scaled_np
     
     # --- 4. Training ---
     model_fold = deepcopy(model)
@@ -318,8 +329,15 @@ def evaluate_on_test(
                 X_tr_balanced, y_tr_balanced = samplers[sampler].fit_resample(X_tr_imputed, y_tr)
 
         scaler_tune = StandardScaler()
-        X_tr_scaled = scaler_tune.fit_transform(X_tr_balanced)
-        X_va_scaled = scaler_tune.transform(X_va_imputed)
+        _X_tr_scaled_np = scaler_tune.fit_transform(X_tr_balanced)
+        _X_va_scaled_np = scaler_tune.transform(X_va_imputed)
+        
+        if hasattr(X_tr_balanced, 'columns'):
+            X_tr_scaled = pd.DataFrame(_X_tr_scaled_np, columns=X_tr_balanced.columns, index=X_tr_balanced.index)
+            X_va_scaled = pd.DataFrame(_X_va_scaled_np, columns=X_tr_balanced.columns, index=X_va_imputed.index)
+        else:
+            X_tr_scaled = _X_tr_scaled_np
+            X_va_scaled = _X_va_scaled_np
 
         model_tune = deepcopy(model)
         model_tune.fit(X_tr_scaled, y_tr_balanced)
@@ -356,8 +374,16 @@ def evaluate_on_test(
             X_train_balanced, y_train_balanced = samplers[sampler].fit_resample(X_train_imputed, y_train)
 
     scaler_final = StandardScaler()
-    X_train_scaled = scaler_final.fit_transform(X_train_balanced)
-    X_test_scaled = scaler_final.transform(X_test_imputed)
+    _X_train_scaled_np = scaler_final.fit_transform(X_train_balanced)
+    _X_test_scaled_np = scaler_final.transform(X_test_imputed)
+
+    # Reconstruct DataFrames if inputs possessed columns
+    if hasattr(X_train_balanced, 'columns'):
+         X_train_scaled = pd.DataFrame(_X_train_scaled_np, columns=X_train_balanced.columns, index=X_train_balanced.index)
+         X_test_scaled = pd.DataFrame(_X_test_scaled_np, columns=X_train_balanced.columns, index=X_test_imputed.index)
+    else:
+         X_train_scaled = _X_train_scaled_np
+         X_test_scaled = _X_test_scaled_np
     
     model_final = deepcopy(model)
     model_final.fit(X_train_scaled, y_train_balanced)

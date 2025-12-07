@@ -22,14 +22,15 @@ def get_models(random_state: int = 42) -> Dict[str, Any]:
     """
     models = {
         "LightGBM": LGBMClassifier(random_state=random_state, verbose=-1),
+        #"CustomLightGBM": get_custom_lgbm(random_state=random_state),
         #"RandomForest": RandomForestClassifier(random_state=random_state, n_jobs=-1),
         #"LogisticRegression": LogisticRegression(random_state=random_state, max_iter=1000, n_jobs=-1),
         #"HistGradientBoosting": HistGradientBoostingClassifier(random_state=random_state),
         #"MLP": MLPClassifier(random_state=random_state, max_iter=1000)
     }
 
-    #if XGBClassifier:
-        #models["XGBoost"] = XGBClassifier(random_state=random_state, eval_metric='logloss')
+    if XGBClassifier:
+        models["XGBoost"] = XGBClassifier(random_state=random_state, eval_metric='logloss')
     
     #if CatBoostClassifier:
         #models["CatBoost"] = CatBoostClassifier(random_state=random_state, verbose=0, allow_writing_files=False)
@@ -79,13 +80,45 @@ def weighted_logistic_loss(y_true, y_pred, *args, **kwargs):
     
     return grad, hess
 
+class WeightedLGBMClassifier(LGBMClassifier):
+    """
+    Subclass of LGBMClassifier that properly handles custom objective
+    by converting raw scores to probabilities using sigmoid function.
+    This avoids the warning: "Cannot compute class probabilities or labels due to the usage of customized objective function."
+    """
+    def predict(self, X, raw_score=False, start_iteration=0, num_iteration=None,
+                pred_leaf=False, pred_contrib=False, **kwargs):
+        if raw_score or pred_leaf or pred_contrib:
+            if num_iteration is None:
+                num_iteration = self.best_iteration_
+            return self.booster_.predict(X, start_iteration=start_iteration, 
+                                         num_iteration=num_iteration, raw_score=raw_score, 
+                                         pred_leaf=pred_leaf, pred_contrib=pred_contrib, **kwargs)
+        
+        # Standard prediction via probabilities
+        probas = self.predict_proba(X, start_iteration=start_iteration, num_iteration=num_iteration, **kwargs)
+        # Return class labels (0 or 1) based on probability
+        return np.argmax(probas, axis=1)
+
+    def predict_proba(self, X, start_iteration=0, num_iteration=None, **kwargs):
+        if num_iteration is None:
+            num_iteration = self.best_iteration_
+            
+        # Get raw log-odds scores directly from booster to avoid recursion issues with super().predict()
+        raw_scores = self.booster_.predict(X, start_iteration=start_iteration, num_iteration=num_iteration, raw_score=True, **kwargs)
+        
+        # Apply sigmoid function to convert log-odds to probability of positive class
+        proba_pos = 1.0 / (1.0 + np.exp(-raw_scores))
+        # Return (N, 2) array: [prob_neg, prob_pos]
+        return np.vstack([1.0 - proba_pos, proba_pos]).T
+
 def get_custom_lgbm(random_state: int = 42) -> LGBMClassifier:
     """
     Returns a LightGBM classifier with the custom weighted objective.
     """
     # Note: We pass the objective function to the constructor or fit.
     # For sklearn API, we can pass 'objective' as the function.
-    return LGBMClassifier(
+    return WeightedLGBMClassifier(
         random_state=random_state, 
         verbose=-1, 
         objective=weighted_logistic_loss
