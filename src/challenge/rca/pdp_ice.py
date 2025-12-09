@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.inspection import PartialDependenceDisplay
 
-def generate_pdp_ice(model, X, features, out_dir=".", save_artifacts=False):
+def generate_pdp_ice(model, X, features, output_dir=".", file_prefix="", save_artifacts=False):
     """
     Generates PDP/ICE plots for specified features.
     
@@ -11,7 +11,8 @@ def generate_pdp_ice(model, X, features, out_dir=".", save_artifacts=False):
         model: Trained model.
         X (pd.DataFrame): Data.
         features (list): List of feature names to plot (usually top importance).
-        out_dir (str): Directory to save plots.
+        output_dir (str): Directory to save plots.
+        file_prefix (str): Prefix for artifact filenames.
     """
     if not features:
         print("[PDP] No features provided for PDP/ICE.")
@@ -36,7 +37,7 @@ def generate_pdp_ice(model, X, features, out_dir=".", save_artifacts=False):
     display = PartialDependenceDisplay.from_estimator(
         model, X, features,
         kind="both", # plots both average (PDP) and individual (ICE) lines
-        subsample=1000, # Subsample for speed
+        subsample=2000, # Subsample for speed
         n_jobs=-1,
         grid_resolution=20,
         random_state=42,
@@ -50,7 +51,10 @@ def generate_pdp_ice(model, X, features, out_dir=".", save_artifacts=False):
     plt.tight_layout()
     
     if save_artifacts:
-        outpath = f"{out_dir}/pdp_ice_grid.png"
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        outpath = os.path.join(output_dir, f"{file_prefix}pdp_ice_grid.png")
         plt.savefig(outpath, dpi=150, bbox_inches="tight")
         plt.close()
         print(f"Saved: {outpath}")

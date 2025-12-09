@@ -1,9 +1,11 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+
+
 from sklearn.tree import DecisionTreeClassifier, plot_tree, export_text
 
-def train_surrogate_tree(model, X, y=None, max_depth=3, random_state=42, save_artifacts=False):
+def train_surrogate_tree(model, X, y=None, max_depth=5, random_state=42, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Trains a shallow decision tree to mimic the complex model's predictions.
     
@@ -31,16 +33,20 @@ def train_surrogate_tree(model, X, y=None, max_depth=3, random_state=42, save_ar
     
     if save_artifacts:
         # Save visualization
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(24, 16))
         plot_tree(dt, feature_names=X.columns, filled=True, class_names=["NoFailure", "Failure"], fontsize=10)
         plt.tight_layout()
-        plt.savefig("surrogate_tree.png", dpi=180, bbox_inches="tight")
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        plot_path = os.path.join(output_dir, f"{file_prefix}surrogate_tree.png")
+        plt.savefig(plot_path, dpi=180, bbox_inches="tight")
         plt.close()
-        print("Saved: surrogate_tree.png")
+        print(f"Saved: {plot_path}")
         
     return dt
 
-def extract_rules(tree, feature_names, save_artifacts=False):
+def extract_rules(tree, feature_names, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Extracts text rules from the decision tree.
     """
@@ -48,8 +54,12 @@ def extract_rules(tree, feature_names, save_artifacts=False):
     print("[Surrogate] Extracting rules...")
     
     if save_artifacts:
-        with open("surrogate_rules.txt", "w") as f:
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        txt_path = os.path.join(output_dir, f"{file_prefix}surrogate_rules.txt")
+        with open(txt_path, "w") as f:
             f.write(r_text)
-        print("Saved: surrogate_rules.txt")
+        print(f"Saved: {txt_path}")
         
     return r_text

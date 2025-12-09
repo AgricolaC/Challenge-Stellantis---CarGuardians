@@ -33,7 +33,7 @@ def train_reference_model(lgbm_weighted, X, y, random_state=42):
     
     return lgbm_ref, X_va, y_va, auc_valid
 
-def select_cost_threshold(model, X_va, y_va, cost_fp=10.0, cost_fn=500.0, save_artifacts=False):
+def select_cost_threshold(model, X_va, y_va, cost_fp=10.0, cost_fn=500.0, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Selects the best classification threshold based on a cost function.
     
@@ -44,14 +44,16 @@ def select_cost_threshold(model, X_va, y_va, cost_fp=10.0, cost_fn=500.0, save_a
         cost_fp (float): Cost of a False Positive.
         cost_fn (float): Cost of a False Negative.
         save_artifacts (bool): Whether to save model and threshold to disk.
+        output_dir (str): Directory to save artifacts.
+        file_prefix (str): Prefix for artifact filenames.
         
     Returns:
         tuple: (best_threshold, min_cost)
     """
     # Generate a dense threshold grid (especially near 0)
     thr_grid = np.concatenate([
-        np.linspace(0.00, 0.20, 201),
-        np.linspace(0.21, 0.80, 60),
+        np.linspace(0.00, 0.10, 101),
+        np.linspace(0.11, 0.80, 70),
         np.linspace(0.81, 0.99, 19)
     ])
     thr_grid = np.unique(np.clip(thr_grid, 0, 1))
@@ -74,9 +76,15 @@ def select_cost_threshold(model, X_va, y_va, cost_fp=10.0, cost_fn=500.0, save_a
     print(f"[REF] Best threshold = {best_thr:.3f} | Min cost = {best_cost:.1f}")
 
     if save_artifacts:
-        joblib.dump(model, "model_final_lgbm.pkl")
-        with open("threshold.txt", "w") as f:
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        model_path = os.path.join(output_dir, f"{file_prefix}model_final_lgbm.pkl")
+        thresh_path = os.path.join(output_dir, f"{file_prefix}threshold.txt")
+        
+        joblib.dump(model, model_path)
+        with open(thresh_path, "w") as f:
             f.write(str(best_thr))
-        print("Artifacts saved: model_final_lgbm.pkl, threshold.txt")
+        print(f"Artifacts saved: {model_path}, {thresh_path}")
 
     return best_thr, best_cost
