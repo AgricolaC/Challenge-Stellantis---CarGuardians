@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_artifacts=False):
+def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Computes global SHAP values using TreeExplainer (optimized for tree models).
     
@@ -14,6 +14,8 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
         random_state (int): Seed for sampling.
         max_rows (int): Max rows to use for SHAP to strictly control runtime.
         save_artifacts (bool): Whether to save plots/CSVs.
+        output_dir (str): Directory to save artifacts.
+        file_prefix (str): Prefix for artifact filenames.
         
     Returns:
         tuple: (shap_values, X_sampled, global_importance_df)
@@ -61,29 +63,35 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
     )
 
     if save_artifacts:
-        global_importance.to_csv("shap_global_importance.csv", index=False)
-        print("Saved: shap_global_importance.csv")
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        csv_path = os.path.join(output_dir, f"{file_prefix}shap_global_importance.csv")
+        global_importance.to_csv(csv_path, index=False)
+        print(f"Saved: {csv_path}")
 
         # Summary Plots
         plt.figure(figsize=(8, 6))
         shap.summary_plot(shap_pos, X_shap, plot_type="bar", show=False)
         plt.tight_layout()
-        plt.savefig("shap_summary_bar.png", dpi=180, bbox_inches="tight")
+        bar_path = os.path.join(output_dir, f"{file_prefix}shap_summary_bar.png")
+        plt.savefig(bar_path, dpi=180, bbox_inches="tight")
         plt.close()
 
         plt.figure(figsize=(8, 6))
         shap.summary_plot(shap_pos, X_shap, show=False)
         plt.tight_layout()
-        plt.savefig("shap_summary_beeswarm.png", dpi=180, bbox_inches="tight")
+        bee_path = os.path.join(output_dir, f"{file_prefix}shap_summary_beeswarm.png")
+        plt.savefig(bee_path, dpi=180, bbox_inches="tight")
         plt.close()
-        print("Saved: shap_summary_bar.png, shap_summary_beeswarm.png")
+        print(f"Saved: {bar_path}, {bee_path}")
         
         # Dependence Plots for Top 3
         topk = global_importance["feature"].head(3).tolist()
         for i, f in enumerate(topk, 1):
             shap.dependence_plot(f, shap_pos, X_shap, show=False, interaction_index=None)
             plt.tight_layout()
-            outpath = f"shap_dependence_{i}_{f}.png"
+            outpath = os.path.join(output_dir, f"{file_prefix}shap_dependence_{i}_{f}.png")
             plt.savefig(outpath, dpi=180, bbox_inches="tight")
             plt.close()
             print("Saved:", outpath)
@@ -91,7 +99,7 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
     return shap_pos, X_shap, global_importance
 
 
-def compute_shap_local(model, X_shap, shap_values, threshold, top_k=5):
+def compute_shap_local(model, X_shap, shap_values, threshold, top_k=5, output_dir=".", file_prefix=""):
     """
     Generates local explanations for top high-risk samples.
     
@@ -143,7 +151,10 @@ def compute_shap_local(model, X_shap, shap_values, threshold, top_k=5):
         local_tables.append(row_tbl)
 
     local_explanations = pd.concat(local_tables, ignore_index=True)
-    local_explanations.to_csv("shap_local_top_contributors.csv", index=False)
-    print("Saved: shap_local_top_contributors.csv")
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    outpath = os.path.join(output_dir, f"{file_prefix}shap_local_top_contributors.csv")
+    local_explanations.to_csv(outpath, index=False)
+    print(f"Saved: {outpath}")
     
     return local_explanations

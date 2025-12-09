@@ -19,7 +19,7 @@ def cost_score(estimator, X, y, threshold, cost_fp=10.0, cost_fn=500.0):
     total_cost = FP * cost_fp + FN * cost_fn
     return -total_cost
 
-def compute_permutation_importance(model, X, y, threshold, cost_fp=10.0, cost_fn=500.0, random_state=42, n_repeats=10, save_artifacts=False):
+def compute_permutation_importance(model, X, y, threshold, cost_fp=10.0, cost_fn=500.0, random_state=42, n_repeats=10, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Computes permutation importance using a cost-based scoring function.
     
@@ -58,8 +58,12 @@ def compute_permutation_importance(model, X, y, threshold, cost_fp=10.0, cost_fn
     )
     
     if save_artifacts:
-        pi_df.to_csv("pi_cost_based.csv", index=False)
-        print("Saved: pi_cost_based.csv")
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        csv_path = os.path.join(output_dir, f"{file_prefix}pi_cost_based.csv")
+        pi_df.to_csv(csv_path, index=False)
+        print(f"Saved: {csv_path}")
         
         # Visualization
         top_pi = pi_df.head(15)[::-1]
@@ -68,13 +72,14 @@ def compute_permutation_importance(model, X, y, threshold, cost_fp=10.0, cost_fn
         plt.xlabel("Permutation Importance (Negative Cost Impact)")
         plt.title("Top 15 Features by Cost Reduction")
         plt.tight_layout()
-        plt.savefig("pi_bar_top15.png", dpi=180, bbox_inches="tight")
+        plot_path = os.path.join(output_dir, f"{file_prefix}pi_bar_top15.png")
+        plt.savefig(plot_path, dpi=180, bbox_inches="tight")
         plt.close()
-        print("Saved: pi_bar_top15.png")
+        print(f"Saved: {plot_path}")
         
     return pi_df
 
-def compare_ranks(shap_df, pi_df, save_artifacts=False):
+def compare_ranks(shap_df, pi_df, save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Compares rankings between SHAP and Permutation Importance.
     
@@ -100,8 +105,12 @@ def compare_ranks(shap_df, pi_df, save_artifacts=False):
     merged_sorted = merged.sort_values("avg_rank").reset_index(drop=True)
     
     if save_artifacts:
-        merged_sorted.to_csv("shap_vs_pi_ranks.csv", index=False)
-        print("Saved: shap_vs_pi_ranks.csv")
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        csv_path = os.path.join(output_dir, f"{file_prefix}shap_vs_pi_ranks.csv")
+        merged_sorted.to_csv(csv_path, index=False)
+        print(f"Saved: {csv_path}")
         
         plt.figure(figsize=(6,6))
         plt.scatter(merged["shap_rank"], merged["pi_rank"], s=18)
@@ -111,8 +120,9 @@ def compare_ranks(shap_df, pi_df, save_artifacts=False):
         plt.gca().invert_xaxis()
         plt.gca().invert_yaxis()
         plt.tight_layout()
-        plt.savefig("rank_scatter_shap_vs_pi.png", dpi=180, bbox_inches="tight")
+        plot_path = os.path.join(output_dir, f"{file_prefix}rank_scatter_shap_vs_pi.png")
+        plt.savefig(plot_path, dpi=180, bbox_inches="tight")
         plt.close()
-        print("Saved: rank_scatter_shap_vs_pi.png")
+        print(f"Saved: {plot_path}")
         
     return merged_sorted, rho

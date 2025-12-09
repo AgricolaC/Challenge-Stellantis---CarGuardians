@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import pi
 
-def create_decision_matrix(save_artifacts=False):
+def create_decision_matrix(save_artifacts=False, output_dir=".", file_prefix=""):
     """
     Creates and saves a decision matrix comparing RCA techniques.
     Values are hardcoded based on the provided guide or theoretical properties.
@@ -21,12 +21,16 @@ def create_decision_matrix(save_artifacts=False):
     df = pd.DataFrame(data)
     
     if save_artifacts:
-        df.to_csv("decision_matrix.csv", index=False)
-        print("Saved: decision_matrix.csv")
+        import os
+        os.makedirs(output_dir, exist_ok=True)
+        
+        csv_path = os.path.join(output_dir, f"{file_prefix}decision_matrix.csv")
+        df.to_csv(csv_path, index=False)
+        print(f"Saved: {csv_path}")
         
     return df
 
-def plot_radar_chart(matrix_df, out_path="decision_matrix_radar_clean.png"):
+def plot_radar_chart(matrix_df, output_dir=".", file_prefix=""):
     """
     Generates a radar chart from the decision matrix.
     """
@@ -58,6 +62,9 @@ def plot_radar_chart(matrix_df, out_path="decision_matrix_radar_clean.png"):
         
     plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
     plt.tight_layout()
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, f"{file_prefix}decision_matrix_radar_clean.png")
     plt.savefig(out_path, dpi=180, bbox_inches="tight")
     plt.close()
     print(f"Saved: {out_path}")

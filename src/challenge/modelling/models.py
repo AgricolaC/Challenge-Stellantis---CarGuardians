@@ -24,9 +24,9 @@ def get_models(random_state: int = 42) -> Dict[str, Any]:
         "LightGBM": LGBMClassifier(random_state=random_state, verbose=-1),
         #"CustomLightGBM": get_custom_lgbm(random_state=random_state),
         #"RandomForest": RandomForestClassifier(random_state=random_state, n_jobs=-1),
-        #"LogisticRegression": LogisticRegression(random_state=random_state, max_iter=1000, n_jobs=-1),
-        #"HistGradientBoosting": HistGradientBoostingClassifier(random_state=random_state),
-        #"MLP": MLPClassifier(random_state=random_state, max_iter=1000)
+        "LogisticRegression": LogisticRegression(random_state=random_state, max_iter=1000, n_jobs=-1),
+        "HistGradientBoosting": HistGradientBoostingClassifier(random_state=random_state),
+        "MLP": MLPClassifier(random_state=random_state, max_iter=1000)
     }
 
     if XGBClassifier:
