@@ -1,0 +1,17 @@
+Feature,Role,Algo,Experiment,PyMC_Mean,PyMC_Odds_Ratio
+ax_000,Mediator,PC,EXP_TTF,,
+cb_000,Physical Root,PC,EXP_TTF,,
+cg_000,Mediator,PC,EXP_TTF,,
+ee_mean,Physical Root,PC,EXP_TTF,-0.539,0.5833312920976388
+cs_var,Mediator,PC,EXP_TTF,0.998,2.7128506977432196
+bk_000,Physical Root,PC,EXP_TTF,1.615,5.027887923468749
+cs_mean,Physical Root,PC,EXP_TTF,,
+ai_000,Mediator,PC,EXP_TTF,,
+ax_000,Physical Root,LiNGAM,EXP_TTF,,
+cb_000,Physical Root,LiNGAM,EXP_TTF,,
+cg_000,Physical Root,LiNGAM,EXP_TTF,,
+ee_mean,Physical Root,LiNGAM,EXP_TTF,-0.539,0.5833312920976388
+cs_var,Physical Root,LiNGAM,EXP_TTF,0.998,2.7128506977432196
+bk_000,Physical Root,LiNGAM,EXP_TTF,1.615,5.027887923468749
+cs_mean,Physical Root,LiNGAM,EXP_TTF,,
+ai_000,Physical Root,LiNGAM,EXP_TTF,,

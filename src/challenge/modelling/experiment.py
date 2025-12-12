@@ -16,8 +16,10 @@ def run_experiment_grid(
     selectors: Optional[Dict[str, Any]] = None,
     n_cv_splits: int = 4,
     random_state: int = 42,
-    verbose: bool = True
-) -> pd.DataFrame:
+    verbose: bool = True,
+    y_test: Optional[pd.Series] = None, # NEW: Optional test set labels
+    max_threshold: float = 0.4 # NEW: Sensitivity constraint for test evaluation
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Runs a grid of experiments over models, feature sets, samplers, tuning strategies, AND selectors.
     
@@ -33,9 +35,11 @@ def run_experiment_grid(
         n_cv_splits: Number of CV splits.
         random_state: Random state.
         verbose: Whether to print progress.
+        y_test: Optional. If provided, evaluates on test set for each run.
+        max_threshold: Optional. Constraint for threshold tuning.
         
     Returns:
-        pd.DataFrame containing the results of all experiments.
+        (results_df, results_test_df): Pair of DataFrames for Training/CV and Test results.
     """
     results_list = []
     
@@ -49,8 +53,15 @@ def run_experiment_grid(
     # Outer loop: Iterate over models
     for model_name, model_obj in models.items():
         for fset_name, feature_data in feature_sets.items():
+            # Support optional custom y_train for each feature set
+            y_train_to_use = y_train
+            
             if isinstance(feature_data, tuple):
-                X_train_data, _ = feature_data
+                if len(feature_data) == 3:
+                     X_train_data, _, y_train_custom = feature_data
+                     y_train_to_use = y_train_custom
+                else:
+                    X_train_data, _ = feature_data
             else:
                 X_train_data = feature_data
                 
@@ -102,13 +113,14 @@ def run_experiment_grid(
                             cv_kwargs = {
                                 'model': model_to_run,
                                 'X': X_train_data,
-                                'y': y_train,
+                                'y': y_train_to_use,
                                 'sampler': sampler_key,
                                 'tune_threshold': tuning_bool,
                                 'folds': n_cv_splits,
                                 'show_progress': True,
-                                'verbose': True,
+                                'verbose': False, # Reduce verbosity in grid
                                 'random_state': random_state,
+                                'max_threshold': max_threshold # Pass sensitivity constraint
                             }
                             
                             # Only add sampling_strategy if a sampler is used

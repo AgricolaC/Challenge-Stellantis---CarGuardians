@@ -1,0 +1,17 @@
+Feature,Role,Algo,Experiment,PyMC_Mean,PyMC_Odds_Ratio
+ax_000,Unconnected,PC,EXP_FFF,,
+cb_000,Unconnected,PC,EXP_FFF,,
+cg_000,Unconnected,PC,EXP_FFF,,
+ee_mean,Unconnected,PC,EXP_FFF,,
+cs_var,Unconnected,PC,EXP_FFF,,
+bk_000,Unconnected,PC,EXP_FFF,,
+cs_mean,Unconnected,PC,EXP_FFF,,
+ai_000,Unconnected,PC,EXP_FFF,0.917,2.5017737992899005
+ax_000,Unconnected,LiNGAM,EXP_FFF,,
+cb_000,Unconnected,LiNGAM,EXP_FFF,,
+cg_000,Unconnected,LiNGAM,EXP_FFF,,
+ee_mean,Unconnected,LiNGAM,EXP_FFF,,
+cs_var,Unconnected,LiNGAM,EXP_FFF,,
+bk_000,Unconnected,LiNGAM,EXP_FFF,,
+cs_mean,Unconnected,LiNGAM,EXP_FFF,,
+ai_000,Physical Root,LiNGAM,EXP_FFF,0.917,2.5017737992899005

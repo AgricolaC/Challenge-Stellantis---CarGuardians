@@ -1,0 +1,129 @@
+Feature,Role,Algo,Experiment,PyMC_Mean,PyMC_Odds_Ratio
+ax_000,Mediator,PC,EXP_TTF,,
+cb_000,Physical Root,PC,EXP_TTF,,
+cg_000,Mediator,PC,EXP_TTF,,
+ee_mean,Physical Root,PC,EXP_TTF,-0.539,0.5833312920976388
+cs_var,Mediator,PC,EXP_TTF,0.998,2.7128506977432196
+bk_000,Physical Root,PC,EXP_TTF,1.615,5.027887923468749
+cs_mean,Physical Root,PC,EXP_TTF,,
+ai_000,Mediator,PC,EXP_TTF,,
+ax_000,Physical Root,LiNGAM,EXP_TTF,,
+cb_000,Physical Root,LiNGAM,EXP_TTF,,
+cg_000,Physical Root,LiNGAM,EXP_TTF,,
+ee_mean,Physical Root,LiNGAM,EXP_TTF,-0.539,0.5833312920976388
+cs_var,Physical Root,LiNGAM,EXP_TTF,0.998,2.7128506977432196
+bk_000,Physical Root,LiNGAM,EXP_TTF,1.615,5.027887923468749
+cs_mean,Physical Root,LiNGAM,EXP_TTF,,
+ai_000,Physical Root,LiNGAM,EXP_TTF,,
+ax_000,Mediator,PC,EXP_TFT,0.064,1.0660923987615052
+cb_000,Physical Root,PC,EXP_TFT,0.061,1.0628989141871952
+cg_000,Mediator,PC,EXP_TFT,1.02,2.7731947639642978
+ee_mean,Physical Root,PC,EXP_TFT,0.79,2.203396426255937
+cs_var,Mediator,PC,EXP_TFT,0.432,1.540335115161127
+bk_000,Physical Root,PC,EXP_TFT,0.945,2.572813378588326
+cs_mean,Physical Root,PC,EXP_TFT,-0.769,0.4634763129632616
+ai_000,Mediator,PC,EXP_TFT,0.698,2.0097292268772886
+ax_000,Physical Root,LiNGAM,EXP_TFT,0.064,1.0660923987615052
+cb_000,Physical Root,LiNGAM,EXP_TFT,0.061,1.0628989141871952
+cg_000,Physical Root,LiNGAM,EXP_TFT,1.02,2.7731947639642978
+ee_mean,Physical Root,LiNGAM,EXP_TFT,0.79,2.203396426255937
+cs_var,Physical Root,LiNGAM,EXP_TFT,0.432,1.540335115161127
+bk_000,Physical Root,LiNGAM,EXP_TFT,0.945,2.572813378588326
+cs_mean,Physical Root,LiNGAM,EXP_TFT,-0.769,0.4634763129632616
+ai_000,Physical Root,LiNGAM,EXP_TFT,0.698,2.0097292268772886
+ax_000,Mediator,PC,EXP_TTT,,
+cb_000,Physical Root,PC,EXP_TTT,,
+cg_000,Mediator,PC,EXP_TTT,,
+ee_mean,Physical Root,PC,EXP_TTT,-0.54,0.5827482523739896
+cs_var,Mediator,PC,EXP_TTT,1.0,2.718281828459045
+bk_000,Physical Root,PC,EXP_TTT,1.606,4.982839952102077
+cs_mean,Physical Root,PC,EXP_TTT,,
+ai_000,Mediator,PC,EXP_TTT,,
+ax_000,Physical Root,LiNGAM,EXP_TTT,,
+cb_000,Physical Root,LiNGAM,EXP_TTT,,
+cg_000,Physical Root,LiNGAM,EXP_TTT,,
+ee_mean,Physical Root,LiNGAM,EXP_TTT,-0.54,0.5827482523739896
+cs_var,Physical Root,LiNGAM,EXP_TTT,1.0,2.718281828459045
+bk_000,Physical Root,LiNGAM,EXP_TTT,1.606,4.982839952102077
+cs_mean,Physical Root,LiNGAM,EXP_TTT,,
+ai_000,Physical Root,LiNGAM,EXP_TTT,,
+ax_000,Mediator,PC,EXP_TFF,0.064,1.0660923987615052
+cb_000,Physical Root,PC,EXP_TFF,0.061,1.0628989141871952
+cg_000,Mediator,PC,EXP_TFF,1.02,2.7731947639642978
+ee_mean,Physical Root,PC,EXP_TFF,0.79,2.203396426255937
+cs_var,Mediator,PC,EXP_TFF,0.43,1.5372575235482815
+bk_000,Physical Root,PC,EXP_TFF,0.943,2.567672894029203
+cs_mean,Physical Root,PC,EXP_TFF,-0.769,0.4634763129632616
+ai_000,Mediator,PC,EXP_TFF,0.698,2.0097292268772886
+ax_000,Physical Root,LiNGAM,EXP_TFF,0.064,1.0660923987615052
+cb_000,Physical Root,LiNGAM,EXP_TFF,0.061,1.0628989141871952
+cg_000,Physical Root,LiNGAM,EXP_TFF,1.02,2.7731947639642978
+ee_mean,Physical Root,LiNGAM,EXP_TFF,0.79,2.203396426255937
+cs_var,Physical Root,LiNGAM,EXP_TFF,0.43,1.5372575235482815
+bk_000,Physical Root,LiNGAM,EXP_TFF,0.943,2.567672894029203
+cs_mean,Physical Root,LiNGAM,EXP_TFF,-0.769,0.4634763129632616
+ai_000,Physical Root,LiNGAM,EXP_TFF,0.698,2.0097292268772886
+ax_000,Unconnected,PC,EXP_FFT,,
+cb_000,Unconnected,PC,EXP_FFT,,
+cg_000,Unconnected,PC,EXP_FFT,,
+ee_mean,Unconnected,PC,EXP_FFT,,
+cs_var,Unconnected,PC,EXP_FFT,,
+bk_000,Unconnected,PC,EXP_FFT,,
+cs_mean,Unconnected,PC,EXP_FFT,,
+ai_000,Unconnected,PC,EXP_FFT,,
+ax_000,Unconnected,LiNGAM,EXP_FFT,,
+cb_000,Unconnected,LiNGAM,EXP_FFT,,
+cg_000,Unconnected,LiNGAM,EXP_FFT,,
+ee_mean,Unconnected,LiNGAM,EXP_FFT,,
+cs_var,Unconnected,LiNGAM,EXP_FFT,,
+bk_000,Unconnected,LiNGAM,EXP_FFT,,
+cs_mean,Unconnected,LiNGAM,EXP_FFT,,
+ai_000,Unconnected,LiNGAM,EXP_FFT,,
+ax_000,Unconnected,PC,EXP_FTF,,
+cb_000,Unconnected,PC,EXP_FTF,,
+cg_000,Unconnected,PC,EXP_FTF,,
+ee_mean,Unconnected,PC,EXP_FTF,,
+cs_var,Unconnected,PC,EXP_FTF,,
+bk_000,Unconnected,PC,EXP_FTF,,
+cs_mean,Unconnected,PC,EXP_FTF,,
+ai_000,Unconnected,PC,EXP_FTF,,
+ax_000,Unconnected,LiNGAM,EXP_FTF,,
+cb_000,Unconnected,LiNGAM,EXP_FTF,,
+cg_000,Unconnected,LiNGAM,EXP_FTF,,
+ee_mean,Unconnected,LiNGAM,EXP_FTF,,
+cs_var,Unconnected,LiNGAM,EXP_FTF,,
+bk_000,Unconnected,LiNGAM,EXP_FTF,,
+cs_mean,Unconnected,LiNGAM,EXP_FTF,,
+ai_000,Unconnected,LiNGAM,EXP_FTF,,
+ax_000,Unconnected,PC,EXP_FFF,,
+cb_000,Unconnected,PC,EXP_FFF,,
+cg_000,Unconnected,PC,EXP_FFF,,
+ee_mean,Unconnected,PC,EXP_FFF,,
+cs_var,Unconnected,PC,EXP_FFF,,
+bk_000,Unconnected,PC,EXP_FFF,,
+cs_mean,Unconnected,PC,EXP_FFF,,
+ai_000,Unconnected,PC,EXP_FFF,0.917,2.5017737992899005
+ax_000,Unconnected,LiNGAM,EXP_FFF,,
+cb_000,Unconnected,LiNGAM,EXP_FFF,,
+cg_000,Unconnected,LiNGAM,EXP_FFF,,
+ee_mean,Unconnected,LiNGAM,EXP_FFF,,
+cs_var,Unconnected,LiNGAM,EXP_FFF,,
+bk_000,Unconnected,LiNGAM,EXP_FFF,,
+cs_mean,Unconnected,LiNGAM,EXP_FFF,,
+ai_000,Physical Root,LiNGAM,EXP_FFF,0.917,2.5017737992899005
+ax_000,Unconnected,PC,EXP_FTT,,
+cb_000,Unconnected,PC,EXP_FTT,,
+cg_000,Unconnected,PC,EXP_FTT,,
+ee_mean,Unconnected,PC,EXP_FTT,,
+cs_var,Unconnected,PC,EXP_FTT,,
+bk_000,Unconnected,PC,EXP_FTT,,
+cs_mean,Unconnected,PC,EXP_FTT,,
+ai_000,Unconnected,PC,EXP_FTT,,
+ax_000,Unconnected,LiNGAM,EXP_FTT,,
+cb_000,Unconnected,LiNGAM,EXP_FTT,,
+cg_000,Unconnected,LiNGAM,EXP_FTT,,
+ee_mean,Unconnected,LiNGAM,EXP_FTT,,
+cs_var,Unconnected,LiNGAM,EXP_FTT,,
+bk_000,Unconnected,LiNGAM,EXP_FTT,,
+cs_mean,Unconnected,LiNGAM,EXP_FTT,,
+ai_000,Unconnected,LiNGAM,EXP_FTT,,

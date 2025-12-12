@@ -1,0 +1,5 @@
+Method,Local Fidelity,Global Fidelity,Actionability,Computational Cost (Inv),Sparsity
+SHAP (Tree),5,4,4,4,3
+Permutation (Cost),3,5,4,2,4
+Surrogate Tree,2,2,3,5,5
+PDP/ICE,3,4,3,3,2

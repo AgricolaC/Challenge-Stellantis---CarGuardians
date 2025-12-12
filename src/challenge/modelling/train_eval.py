@@ -71,16 +71,34 @@ def _scores(model, X) -> np.ndarray:
     return np.asarray(model.predict(X), dtype=float).ravel()
 
 def _best_threshold_by_cost(
-    y_true: np.ndarray, prob: np.ndarray, cost_fp=10, cost_fn=500
+    y_true: np.ndarray, prob: np.ndarray, cost_fp=10, cost_fn=500, max_threshold=0.4
 ) -> Tuple[float, float]:
-    fpr, tpr, thr = roc_curve(y_true, prob)
-    P = (y_true == 1).sum()
-    N = (y_true == 0).sum()
-    FP = fpr * N
-    FN = (1 - tpr) * P
-    costs = cost_fp * FP + cost_fn * FN
-    j = int(np.argmin(costs))
-    return float(thr[j]), float(costs[j])
+    """
+    Finds the optimal threshold effectively using a grid scan to handle
+    discrete/stepped probability outputs from tree models.
+    """
+    # 1. Define Search Grid (High precision scan up to max_threshold)
+    # 2000 steps ensures precision of ~0.0005 (if max=1.0) or finer
+    thresholds = np.linspace(0, max_threshold, 4002)
+    
+    # 2. Vectorized Cost Calculation
+    # Make predicted labels for ALL thresholds at once: (N_samples, N_thresholds)
+    # Row i, Col j is True if prob[i] >= thresholds[j]
+    preds = prob[:, np.newaxis] >= thresholds[np.newaxis, :]
+    
+    # Calculate FP and FN for each threshold column
+    # FP: Predicted 1 (True) BUT True Label is 0
+    fps = np.sum(preds & (y_true[:, np.newaxis] == 0), axis=0)
+    
+    # FN: Predicted 0 (False) BUT True Label is 1
+    fns = np.sum((~preds) & (y_true[:, np.newaxis] == 1), axis=0)
+    
+    # 3. Compute Total Costs
+    costs = (fps * cost_fp) + (fns * cost_fn)
+    
+    # 4. Select Best
+    best_idx = np.argmin(costs)
+    return float(thresholds[best_idx]), float(costs[best_idx])
 
 def _metrics_at_threshold(
     y_true: np.ndarray, prob: np.ndarray, thr: float, cost_fp=10, cost_fn=500
@@ -102,7 +120,7 @@ from joblib import Parallel, delayed
 def _process_fold(
     fold, tr_idx, va_idx, X, y, model, 
     cost_fp, cost_fn, sampler, sampling_strategy, 
-    tune_threshold, samplers
+    tune_threshold, samplers, max_threshold=0.4
 ):
     """
     Helper function to process a single CV fold.
@@ -195,7 +213,8 @@ def cv_cost(
     return_threshold: bool = True,
     random_state: int = 42,
     show_progress: bool = True,
-    n_jobs: int = -1 # <-- New argument
+    n_jobs: int = -1,
+    max_threshold: float = 0.4
 ) -> Dict[str, Any]:
     """
     Cross-validates the full "Impute -> Balance -> Scale -> Train" pipeline.
@@ -226,7 +245,7 @@ def cv_cost(
         delayed(_process_fold)(
             fold, tr_idx, va_idx, X, y, model, 
             cost_fp, cost_fn, sampler, sampling_strategy, 
-            tune_threshold, samplers
+            tune_threshold, samplers, max_threshold
         ) 
         for fold, (tr_idx, va_idx) in enumerate(fold_iter, 1)
     )
@@ -281,6 +300,7 @@ def evaluate_on_test(
     tune_if_none: bool = True,
     random_state: int = 42,
     verbose: bool = True,
+    max_threshold: float = 0.4
 ) -> Dict[str, Any]:
     """
     Evaluates the full pipeline on the test set.
@@ -344,7 +364,7 @@ def evaluate_on_test(
         fit_sel = time.perf_counter() - t_fit0
 
         prob_val = _scores(model_tune, X_va_scaled)
-        threshold, tune_cost = _best_threshold_by_cost(y_va, prob_val, cost_fp, cost_fn)
+        threshold, tune_cost = _best_threshold_by_cost(y_va, prob_val, cost_fp, cost_fn, max_threshold)
         if verbose:
             print(f"Threshold tuned in {fmt_secs(fit_sel)} -> thr={threshold:.3f} (Val Cost={tune_cost:.0f})")
     

@@ -25,7 +25,7 @@ class ScaniaPreprocessor(BaseEstimator, TransformerMixin):
         self.na_drop_thresh = na_drop_thresh
         self.low_na_thresh = low_na_thresh
         self.mice_estimator = mice_estimator
-        self.max_iter = 20
+        self.max_iter = 100 # Increased to ensure convergence
         self.columns_to_keep_ = None
         self.na_cols_to_drop_ = None
         self.constant_cols_to_drop_ = None
@@ -48,7 +48,6 @@ class ScaniaPreprocessor(BaseEstimator, TransformerMixin):
         # Identify columns to drop
         na_pct = X.isna().mean()
         self.na_cols_to_drop_ = set(na_pct[na_pct > self.na_drop_thresh].index)
-        print(f"Dropping {len(self.na_cols_to_drop_)} columns with > {self.na_drop_thresh:.0%} missing values: {sorted(list(self.na_cols_to_drop_))}")
         
         # We drop rows with <4% missing in training *before* CV, so we don't do it here.
         # But we must drop constant columns.
@@ -68,7 +67,6 @@ class ScaniaPreprocessor(BaseEstimator, TransformerMixin):
         X_filtered = X[self.columns_to_keep_]
 
 
-        
         # Identify imputation strategies
         na_pct_filtered = X_filtered.isna().mean()
         # Low NA: 0 < pct <= threshold (Median)
@@ -89,12 +87,19 @@ class ScaniaPreprocessor(BaseEstimator, TransformerMixin):
             
         # MICE imputer for high-NA columns
         if self.high_na_cols_:
+            # Wrap estimator in a pipeline with Scaling to solve LinAlgWarning (Ill-conditioned matrix)
+            mice_pipe = Pipeline([
+                ('scaler', StandardScaler()),
+                ('estimator', self.mice_estimator)
+            ])
+            
             self.mice_imputer_ = IterativeImputer(
-                estimator=self.mice_estimator,
+                estimator=mice_pipe,
                 max_iter=self.max_iter,
                 random_state=42,
                 imputation_order='ascending',
-                verbose=0
+                verbose=0,
+                min_value=0 # Enforce physical constraint (non-negative)
             )
             self.mice_imputer_.fit(X_filtered[self.high_na_cols_])
             
