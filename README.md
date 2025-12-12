@@ -32,9 +32,9 @@ src/challenge/
 │   ├── feature_selection.py  # Physics-based feature extraction (Moments, Entropy)
 │   └── balancing.py          # SMOTEENN & Gaussian Copula synthesis
 ├── modelling/
-│   ├── models.py             # LightGBM with custom Weighted Logistic Loss
+│   ├── models.py             # Defining used models
 │   ├── selectors.py          # Consensus Voting (Mutual Info + KS Test + LGBM)
-│   ├── train_eval.py         # Cost-sensitive CV & Evaluation
+│   ├── train_eval.py         # CV & Evaluation
 │   ├── experiment.py         # Grid search orchestration
 │   └── threshold_tuning.py   # Dynamic cost-based threshold optimization
 ├── rca/
@@ -152,6 +152,6 @@ Based on our extensive grid search (see `04_master_analysis.ipynb`), the top-per
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+see the LICENSE file for details.
 
 ---
