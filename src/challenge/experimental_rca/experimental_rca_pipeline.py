@@ -1,10 +1,21 @@
+import sys
+import os
+# Add src to python path to allow imports from project root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
 print("DEBUG: File loaded.")
 from challenge.data.preprocess import ScaniaPreprocessor
+from challenge.data.ingest import load_data
+from challenge.data.outliers import fit_predict_isolation_forest, analyze_isolation_forest_outliers
+
+from challenge.data.feature_selection import select_features_ks, create_engineered_feature_set, select_features_fast_consensus
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
+# Suppress specific scipy warnings that occur with constant/near-constant features
+
 import sys
 import os
 import networkx as nx
@@ -22,104 +33,65 @@ from scipy.spatial.distance import squareform
 import statsmodels.api as sm
 from scipy.stats import spearmanr
 # Causal Imports
+from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+from causallearn.graph.GraphNode import GraphNode
+from causallearn.search.ConstraintBased.PC import pc
+from causallearn.utils.cit import chisq
+from causallearn.search.FCMBased import lingam
+from causallearn.search.FCMBased.lingam import DirectLiNGAM
 
 
-def collapse_histograms(df):
-    """
-    Transforms Scania histogram families (bins) into statistical moments.
-    Families handled:
-    - ag, ay, az, ba, cn, cs, ee (10 bins each usually)
-    Returns:
-        pd.DataFrame: New dataframe with collapsed features + original single counters.
-    """
-    print("--- Collapsing Histograms into Statistical Moments ---")
-    
-    # known histogram families in Scania dataset
-    families = ['ag', 'ay', 'az', 'ba', 'cn', 'cs', 'ee']
-    
-    # 1. Identify non-histogram columns to keep (Single Counters)
-    # We exclude the raw bins of the families
-    all_cols = df.columns.tolist()
-    keep_cols = []
-    
-    for col in all_cols:
-        is_hist = any(col.startswith(f + '_') and col[-1].isdigit() for f in families)
-        if not is_hist:
-            keep_cols.append(col)
-            
-    df_new = df[keep_cols].copy()
-    
-    # 2. Process each family
-    for fam in families:
-        # Find all bins for this family (e.g., ag_000, ag_001...)
-        bins = sorted([c for c in df.columns if c.startswith(fam + '_') and c[-1].isdigit()])
-        
-        if not bins:
-            continue
-            
-        # Extract data matrix for this family (N_samples x N_bins)
-        data = df[bins].values
-        
-        # A. SUM (Total Load / Frequency)
-        total_counts = data.sum(axis=1)
-        df_new[f'{fam}_sum'] = total_counts
-        
-        # Avoid division by zero for statistical moments
-        mask = total_counts > 0
-        
-        # Calculate probabilities (weights)
-        probs = np.zeros_like(data, dtype=float)
-        probs[mask] = data[mask] / total_counts[mask, None]
-        
-        # B. PROXY MEAN (Shift in Distribution)
-        # We use the bin index (0, 1, 2...) as the proxy for the physical value center.
-        bin_indices = np.arange(len(bins))
-        mu = np.sum(probs * bin_indices, axis=1)
-        df_new[f'{fam}_mean'] = mu
-        
-        # C. PROXY VARIANCE (Instability)
-        # Var = E[x^2] - (E[x])^2
-        mu2 = np.sum(probs * (bin_indices**2), axis=1)
-        var = mu2 - (mu**2)
-        
-        # Clean up floating point errors
-        var[var < 0] = 0
-        df_new[f'{fam}_var'] = var
-        
-    print(f" Collapse Complete. New Shape: {df_new.shape}")
-    return df_new
 
-def configure_priors(labels, target_col='class', time_col='aa_000', 
+def configure_priors(labels, feature_groups=None, target_col='class', time_col='aa_000', 
                      rule_class_sink=True, rule_time_source=True, rule_mediation=True):
     n = len(labels)
     # Matrix convention: priors[i, j] = -1 means j -> i is FORBIDDEN
     # Row (i) = Effect, Col (j) = Cause
     priors = np.zeros((n, n))
     
+    # Mapping for Hierarchy: Global (0) -> Secondary (1) -> Diagnostic (2)
+    # Lower ID cannot be caused by Higher ID (e.g., 2 cannot cause 0)
+    hierarchy_map = {'Global': 0, 'Secondary': 1, 'Diagnostic': 2, 'Unclassified': 3}
+    
     try:
         t_idx = labels.index(target_col)
+        time_idx = labels.index(time_col) if time_col in labels else -1
         
-        # 1. Class is Sink (Target)
+        # 1. Standard Physics Rules
         if rule_class_sink:
-            priors[:, t_idx] = -1 
+            priors[:, t_idx] = -1 # Class cannot cause anything
         
-        if time_col in labels:
-            time_idx = labels.index(time_col)
-            
-            # 2. Time is Source
+        if time_idx != -1:
             if rule_time_source:
-                priors[time_idx, :] = -1
-            
-            # 3. MEDIATION RULE: Time cannot cause Class directly
+                priors[time_idx, :] = -1 # Nothing causes Time
             if rule_mediation:
-                priors[t_idx, time_idx] = -1
-            
+                priors[t_idx, time_idx] = -1 # Time cannot cause Class directly
+                
+        # 2. Correlation-Based Hierarchy Rules
+        if feature_groups:
+            print("  Applying Correlation Hierarchy Rules...")
+            for i, feat_i in enumerate(labels):
+                if feat_i == target_col or feat_i == time_col: continue
+                
+                group_i = feature_groups.get(feat_i, 'Unclassified')
+                rank_i = hierarchy_map.get(group_i, 3)
+                
+                for j, feat_j in enumerate(labels):
+                    if i == j: continue
+                    if feat_j == target_col or feat_j == time_col: continue
+                    
+                    group_j = feature_groups.get(feat_j, 'Unclassified')
+                    rank_j = hierarchy_map.get(group_j, 3)
+                    
+                    # RULE: Higher Rank cannot cause Lower Rank
+                    # e.g. Diagnostic (2) cannot cause Global (0)
+                    if rank_j > rank_i:
+                        # j -> i is FORBIDDEN
+                        priors[i, j] = -1
+                        
     except ValueError:
         pass
         
-    print(f"DEBUG: Priors Shape: {priors.shape}")
-    print(f"DEBUG: Rules - Sink: {rule_class_sink}, Source: {rule_time_source}, Mediation: {rule_mediation}")
-    
     return priors.astype(int)
 
 def smart_transform_collapsed(df_collapsed, skew_threshold=2.0):
@@ -244,123 +216,122 @@ def analyze_feature_relationships(X, y, reference_col, families=None):
     # Check descriptive stats
     print(X[reference_col].groupby(y).describe())
 
-def get_consensus_features(X, y, n_features=14):
-    print(f"\n--- Consensus Feature Selection (Top {n_features} per method) ---")
+def cluster_features_by_correlation(X, features, families=None, X_raw=None):
+    """
+    Clusters features into 'Global', 'Secondary', or 'Diagnostic' 
+    based on their mean Spearman correlation with cumulative feature families.
     
-    # 1. K-S Test
-    ks_feats = select_features_ks(X, y, top_n_by_stat=n_features, p_value_threshold=0.05)
-    
-    print(f"KS Features: {ks_feats}")
-
-    # 2. SHAP
-    model_shap = LGBMClassifier(random_state=42, verbose=-1, class_weight='balanced')
-    model_shap.fit(X, y)
-    explainer = shap.TreeExplainer(model_shap)
-    shap_vals = explainer.shap_values(X.sample(min(8000, len(X)), random_state=42))
-    shap_vals_pos = shap_vals[1] if isinstance(shap_vals, list) else shap_vals
-    shap_df = pd.DataFrame({'feat': X.columns, 'shap': np.abs(shap_vals_pos).mean(axis=0)})
-    shap_feats = shap_df.sort_values('shap', ascending=False).head(n_features)['feat'].tolist()
-    print(f"SHAP Features: {shap_feats}")
-    
-    # 3. Lasso
-    scaler = StandardScaler()
-    lasso = LogisticRegression(penalty='l1', solver='liblinear', C=0.1, class_weight='balanced', random_state=42)
-    lasso.fit(scaler.fit_transform(X), y)
-    lasso_feats = pd.Series(np.abs(lasso.coef_[0]), index=X.columns).sort_values(ascending=False).head(n_features).index.tolist()
-    print(f"Lasso Features: {lasso_feats}")
-    
-    feature_pool = list(set(ks_feats) | set(shap_feats) | set(lasso_feats))
-    print(f"Pooled Candidates: {len(feature_pool)}")
-
-    # Clustering Logic
-    corr = X[feature_pool].corr(method='spearman').abs()
-    dist = 1 - corr.fillna(0)
-    linkage = hierarchy.linkage(squareform(np.clip(dist, 0, None)), method='ward')
-    
-    # --- Analysis & Visualization ---
-    from sklearn.metrics import silhouette_score
-    import matplotlib.pyplot as plt
-    
-    # 1. Dendrogram
-    plt.figure(figsize=(12, 6))
-    hierarchy.dendrogram(linkage, labels=feature_pool, leaf_rotation=90)
-    plt.title("Feature Clustering Dendrogram")
-    plt.axhline(y=0.5, color='r', linestyle='--') # Reference line for t=0.5
-    plt.show()
-    
-    # 2. Elbow-Knee (Linkage Distance)
-    last = linkage[-25:, 2]
-    last_rev = last[::-1]
-    idxs = np.arange(1, len(last) + 1)
-    plt.figure(figsize=(15, 6))
-    plt.plot(idxs, last_rev, label='Linkage Distance')
-    plt.title('Elbow Method (Linkage Distance)')
-    plt.xlabel('Number of Clusters')
-    plt.ylabel('Distance')
-    plt.grid(True)
-    plt.show()
-    
-    # 3. Silhouette Score & Recommendation
-    n_clusters_range = range(2, min(20, len(feature_pool)))
-    sil_scores = []
-    best_k = 2
-    best_score = -1
-    
-    for n in n_clusters_range:
-        c = hierarchy.fcluster(linkage, t=n, criterion='maxclust')
-        if len(set(c)) > 1:
-            score = silhouette_score(dist, c, metric='precomputed')
-            sil_scores.append(score)
-            if score > best_score:
-                best_score = score
-                best_k = n
-        else:
-            sil_scores.append(0)
-            
-    plt.figure(figsize=(10, 4))
-    plt.plot(n_clusters_range, sil_scores, marker='o')
-    plt.axvline(x=best_k, color='r', linestyle='--', label=f'Best k={best_k}')
-    plt.title(f'Silhouette Score vs Num Clusters (Best: {best_k})')
-    plt.xlabel('Number of Clusters')
-    plt.ylabel('Silhouette Score')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-    
-    print(f"Recommended number of clusters (Max Silhouette): {best_k}")
-    
-    # --- User Input ---
-    try:
-        user_input = input(f"Enter number of clusters to use (default {best_k}): ")
-        if user_input.strip() == "":
-            k_selected = best_k
-        else:
-            k_selected = int(user_input)
-    except Exception as e:
-        print(f"Input error or non-interactive mode. Using default k={best_k}")
-        k_selected = best_k
+    Args:
+        X (pd.DataFrame): The feature matrix to calculate correlations against (e.g. X_transformed).
+        features (list): List of features to cluster.
+        families (list): Feature families to sum.
+        X_raw (pd.DataFrame): Optional. Reference dataframe containing raw family columns 
+                              (e.g. X_clean). Use this to calculate family sums if X 
+                              no longer contains them (e.g. after transform).
+    """
+    if families is None:
+        families = ['ag', 'ay', 'ba', 'cn', 'cs', 'ee']
         
-    print(f"Using {k_selected} clusters.")
+    print(f"\n--- Clustering {len(features)} Features by Correlation ---")
     
-    # --- Final Selection ---
-    # Use 'maxclust' to enforce exactly k_selected clusters
-    clusters = hierarchy.fcluster(linkage, t=k_selected, criterion='maxclust')
+    # 1. Determine Source for Family Sums
+    df_source = X_raw if X_raw is not None else X
     
-    final_features = []
-    for cid in np.unique(clusters):
-        members = np.array(feature_pool)[clusters == cid]
-        # Select best representative by SHAP value
-        best = shap_df[shap_df['feat'].isin(members)].sort_values('shap', ascending=False).iloc[0]['feat']
-        final_features.append(best)
+    # 2. Pre-calculate Family Sums
+    family_sums = {}
+    for fam in families:
+        # Look in source df
+        cols = [c for c in df_source.columns if c.startswith(fam + '_') and c[-1].isdigit()]
+        if cols:
+            family_sums[fam] = df_source[cols].sum(axis=1)
             
-    print(f"Final Representatives: {len(final_features)}")
+    if not family_sums:
+        print("  Warning: No families found for correlation. Defaulting all to 'Secondary'.")
+        return {f: 'Secondary' for f in features}
+
+    feature_groups = {}
+    
+    for feat in features:
+        if feat not in X.columns:
+            continue
+            
+        corrs = []
+        for fam_sum in family_sums.values():
+            c, _ = spearmanr(X[feat], fam_sum, nan_policy='omit')
+            if not np.isnan(c):
+                corrs.append(abs(c))
+                
+        avg_corr = np.mean(corrs) if corrs else 0
+        
+        if avg_corr > 0.75:
+            group = 'Global' # Age/Mileage Proxy
+        elif avg_corr > 0.25:
+            group = 'Secondary' # Duty Cycle
+        else:
+            group = 'Diagnostic' # Specific Fault
+            
+        feature_groups[feat] = group
+        # print(f"  {feat:<12} | Corr: {avg_corr:.3f} -> {group}")
+        
+    # Stats
+    counts = pd.Series(feature_groups.values()).value_counts()
+    print(f"  Clustering Results: {counts.to_dict()}")
+    
+
+    return feature_groups
+
+def filter_redundant_global_features(features, feature_groups, preferred_globals=['aa_000', 'ci_000']):
+    """
+    Ensures ONLY ONE 'Global' feature is kept to represent system age/usage.
+    Prioritizes 'aa_000' (Time), then 'ci_000', then others.
+    """
+    
+    # 1. Identify all Global features
+    global_features = [f for f in features if feature_groups.get(f, 'Unclassified') == 'Global']
+    
+    if len(global_features) <= 1:
+        return features # No redundancy
+        
+    print(f"  [Filter] Found {len(global_features)} Global Features: {global_features}")
+    
+    # 2. Select the Best Global
+    best_global = None
+    
+    # Check preferences
+    for pref in preferred_globals:
+        if pref in global_features:
+            best_global = pref
+            break
+            
+    # Fallback if no preferred global is found (pick random/first)
+    if best_global is None:
+        best_global = global_features[0]
+        
+    print(f"  [Filter] Selected Global: {best_global}. Dropping others.")
+    
+    # 3. Construct Final List
+    final_features = []
+    dropped_count = 0
+    for feat in features:
+        # If it's a global feature but NOT the best one, skip it
+        if feat in global_features and feat != best_global:
+            dropped_count += 1
+            continue
+        final_features.append(feat)
+        
     return final_features
-def run_pc_algorithm(X, y, features, rule_class_sink=True, rule_time_source=True, rule_mediation=True):
+
+def run_pc_algorithm(X, y, features, feature_groups, rule_class_sink=True, rule_time_source=True, rule_mediation=True):
     print(f"\n--- [Engine A] PC Algorithm (Discrete) | Rules: Class={rule_class_sink}, Time={rule_time_source}, Med={rule_mediation} ---")
+    
+    # --- Feature Filtering (Added Step) ---
+    # We must ensure only 1 global feature exists for PC as well
+    # feature_groups is now PASSED IN, so we don't need to recalculate it here.
+    features_filtered = filter_redundant_global_features(features, feature_groups)
     
     est = KBinsDiscretizer(n_bins=5, encode='ordinal', strategy='quantile')
     
-    df = X[features].copy()
+    df = X[features_filtered].copy()
     
     # Discretize continuous
     for c in df.columns:
@@ -387,8 +358,8 @@ def run_pc_algorithm(X, y, features, rule_class_sink=True, rule_time_source=True
             # Forbidden: Class -> Feature_i
             bk.add_forbidden_by_node(nodes[t_idx], nodes[i])
         
-    if 'aa_000' in features:
-        aa_idx = features.index('aa_000')
+    if 'aa_000' in labels:
+        aa_idx = labels.index('aa_000')
         # Rule 2: Features cannot cause Time
         if rule_time_source:
             for i in range(len(labels)-1):
@@ -412,7 +383,7 @@ def run_pc_algorithm(X, y, features, rule_class_sink=True, rule_time_source=True
         
     return adj, labels
 
-def run_lingam_algorithm(X, y, features, rule_class_sink=True, rule_time_source=True, rule_mediation=True, priors=None):
+def run_lingam_algorithm(X, y, features, feature_groups, rule_class_sink=True, rule_time_source=True, rule_mediation=True, priors=None):
     print(f"\n--- [Engine B] DirectLiNGAM (Continuous) | Rules: Class={rule_class_sink}, Time={rule_time_source}, Med={rule_mediation} ---")
     df = X[features].copy()
     
@@ -424,15 +395,25 @@ def run_lingam_algorithm(X, y, features, rule_class_sink=True, rule_time_source=
     labels = df.columns.tolist()
     
     if priors is None:
-        # Create Prior Knowledge Matrix manually if not provided
-        prior_knowledge = configure_priors(labels, rule_class_sink=rule_class_sink, 
-                                           rule_time_source=rule_time_source, rule_mediation=rule_mediation)
+        # Cluster Features first - NO, we use passed feature groups
+        # feature_groups = cluster_features_by_correlation(X, labels)
+        
+        # --- CRITICAL FIX: Drop Redundant Globals ---
+        # We only want one "Global/Age" factor.
+        features_to_keep = filter_redundant_global_features(labels, feature_groups)
+                
+        # Update Data and Labels
+        df = df[features_to_keep]
+        labels = features_to_keep
+        
+        # Update Priors based on cleaned list
+        prior_knowledge = configure_priors(labels, feature_groups=feature_groups, 
+                                           rule_class_sink=rule_class_sink, 
+                                           rule_time_source=rule_time_source, 
+                                           rule_mediation=rule_mediation)
     else:
-        # Re-align priors to the current subset of features if necessary
-        # But for now, let's assume the caller handles it or we use the helper inside here
-        # Actually, best to regenerate priors for the specific subset
-        prior_knowledge = configure_priors(labels, rule_class_sink=rule_class_sink, 
-                                           rule_time_source=rule_time_source, rule_mediation=rule_mediation)
+        # If priors are passed manually, we strictly respect them
+        prior_knowledge = priors
 
     model = DirectLiNGAM(prior_knowledge=prior_knowledge)
     model.fit(df)
@@ -888,7 +869,7 @@ def visualize_hierarchy_final(G, title, filename, pymc_results=None):
     nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=4000, alpha=0.9)
     nx.draw_networkx_edges(G, pos, arrowsize=25, edge_color='#7f8c8d', width=2, alpha=0.7, 
                            node_size=4000, connectionstyle="arc3,rad=0.1")
-    nx.draw_networkx_labels(G, pos, labels=labels, font_color='white', font_weight='bold', font_size=12)
+    nx.draw_networkx_labels(G, pos, labels=labels, font_color='lightgreen', font_weight='bold', font_size=12)
     
     # Custom Legend
     from matplotlib.lines import Line2D
@@ -941,29 +922,60 @@ def main():
     print("DEBUG: Starting main function...")
     DATA_PATH = 'dataset/'
     TRAIN_FILE = 'aps_failure_training_set.csv'
-    n_features = 12
+    n_features = 8
     # 1. Prep (Load Once)
     print("Loading Data...")
-    X_raw, y_raw = load_data_scania(DATA_PATH, TRAIN_FILE)
-    preproc = ScaniaPreprocessor()
-    X_clean = preproc.fit_transform(X_raw)
+    # 1. Prep (Load Once)
+    try:
+        X, y_raw = load_data(DATA_PATH, TRAIN_FILE)
+    except (FileNotFoundError, IndexError):
+        # Fallback for dev environment pathing
+        print("  Warning: Standard path failed. Trying relative path...")
+        X, y_raw = load_data('../../' + DATA_PATH, TRAIN_FILE)
 
-    print("\n--- Gaussianity Check (Clean) ---")
-    check_gaussianity(X_clean, X_clean.columns)
+    # --- 1b. Preprocessing (Imputation & Outlier Removal) ---
+    print("\n--- Preprocessing (Imputation) ---")
+    # We must impute missing values before feature engineering, 
+    # otherwise numerical base features will have NaNs.
+    preproc = ScaniaPreprocessor(reduce_missingness=True)
+    X_clean = preproc.fit_transform(X)
+    print("\n--- Preprocessing Done ---")
+
+    # --- 1c. Outlier Detection (Isolation Forest) ---
+    # Smart anomaly detection on clean data
+    mask = fit_predict_isolation_forest(X_clean, y=y_raw, contamination=0.02)
+    analyze_isolation_forest_outliers(X_clean, y_raw, mask)
     
-    # 1. Collapse & Transform
-    X_collapsed = collapse_histograms(X_clean)
-    print("\n--- Gaussianity Check (Collapsed) ---")
-    check_gaussianity(X_collapsed, X_collapsed.columns)
-    X_transformed = smart_transform_collapsed(X_collapsed)
-    print("\n--- Gaussianity Check (Transformed) ---")
-    check_gaussianity(X_transformed, X_transformed.columns)
+    X_clean = X_clean[mask].reset_index(drop=True)
+    y_clean = y_raw[mask].reset_index(drop=True)
+    # Update y_raw reference for downstream compatibility if necessary, 
+    # but strictly we should use y_clean now.
+    y_raw = y_clean 
+    print(f"  Data Shape after Outlier Removal: {X_clean.shape}")
+
+    # --- 2. Feature Engineering & Selection (Consolidated & Modular) ---
+    # Replaces old 'collapse_histograms' with production-grade engineering
+    
+    # A. Feature Engineering (Vectorized)
+    # Note: create_engineered_feature_set handles collapsing and advanced physics features
+    # (Entropy, Bimodality, Peaks, etc.) automatically.
+    # We use X_clean which has imputed values.
+    X_transformed = create_engineered_feature_set(X_clean, healthy_references=None)
+    
+    # B. Smart Transform (Log1p for Skewed)
+    X_transformed = smart_transform_collapsed(X_transformed)
+
+    # C. Consensus Feature Selection
+    # Replaces old ad-hoc selector. Uses KS + LightGBM + Lasso (Tri-Method Consensus).
+    final_features = select_features_fast_consensus(X_transformed, y_raw, n_features=n_features)
+    
+    print(f"  Final Feature Set for Causal Discovery ({len(final_features)}): {final_features}")
     
     
-    # 2. Consensus Feature Selection
-    # Use full data (unbalanced) for selection to get true population signals
-    
-    final_features = get_consensus_features(X_transformed, y_raw, n_features=n_features)
+    # --- 2b. Cluster Features & Enforce Hierarchy (Global/Secondary/Diagnostic) ---
+    # Run on X_transformed which has Family Sums missing... so we pass X_clean (X_raw) 
+    # to calculate family sums correctly!
+    feature_groups = cluster_features_by_correlation(X_transformed, final_features, X_raw=X_clean)
     print("\n--- Gaussianity Check (Consensus Features) ---")
     check_gaussianity(X_transformed, final_features)
    
@@ -990,12 +1002,7 @@ def main():
     
     experiments = [
         ("EXP_FFF", False, False, False),
-        ("EXP_FFT", False, False, True),
-        ("EXP_FTT", False, True, True),
-        ("EXP_FTF", False, True, False),
         ("EXP_TFF", True, False, False),
-        ("EXP_TTF", True, True, False),
-        ("EXP_TFT", True, False, True),
         ("EXP_TTT", True, True, True),
     ]
     
@@ -1013,13 +1020,13 @@ def main():
         
         # --- A. PC Algorithm ---
         adj_pc, labels_pc = run_pc_algorithm(
-            X_bal, y_bal, final_features, # Changed consensus_features to final_features
+            X_bal, y_bal, final_features, feature_groups, # Pass feature_groups
             rule_class_sink=r_sink, rule_time_source=r_source, rule_mediation=r_med
         )
         
         # --- B. LiNGAM Algorithm ---
         adj_lingam, labels_lingam = run_lingam_algorithm(
-            X_bal_cont, y_bal, final_features, # Changed X_bal to X_bal_cont, consensus_features to final_features
+            X_bal_cont, y_bal, final_features, feature_groups, # Pass feature_groups
             rule_class_sink=r_sink, rule_time_source=r_source, rule_mediation=r_med
         )
         # --- C. Analyze Structure ---
@@ -1060,8 +1067,8 @@ def main():
                     model_age = sm.Logit(y_raw, X_age)
                     res_age = model_age.fit(disp=0)
                     
-                    coef_age = res_age.params[1]
-                    p_age = res_age.pvalues[1]
+                    coef_age = res_age.params.iloc[1]
+                    p_age = res_age.pvalues.iloc[1]
                     conf_age = res_age.conf_int().iloc[1]
                     
                     row_age = {
