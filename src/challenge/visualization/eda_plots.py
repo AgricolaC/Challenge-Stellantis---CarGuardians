@@ -1,7 +1,7 @@
-import seaborn as sns
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 
 def eda_plots_with_stats(df: pd.DataFrame, title_prefix: str = ""):
@@ -24,11 +24,13 @@ def eda_plots_with_stats(df: pd.DataFrame, title_prefix: str = ""):
         # Print means/std like teacher
         if feat in desc_1.columns and feat in desc_0.columns:
             mean1 = desc_1.loc["mean", feat] if "mean" in desc_1.index else np.nan
-            std1  = desc_1.loc["std", feat]  if "std"  in desc_1.index else np.nan
+            std1 = desc_1.loc["std", feat] if "std" in desc_1.index else np.nan
             mean0 = desc_0.loc["mean", feat] if "mean" in desc_0.index else np.nan
-            std0  = desc_0.loc["std", feat]  if "std"  in desc_0.index else np.nan
+            std0 = desc_0.loc["std", feat] if "std" in desc_0.index else np.nan
 
-            print(f"\033[1mFeature '{feat}', Class 1 → Mean: {mean1:.4f}, Std: {std1:.4f}\033[0m")
+            print(
+                f"\033[1mFeature '{feat}', Class 1 → Mean: {mean1:.4f}, Std: {std1:.4f}\033[0m"
+            )
             print(f"Feature '{feat}', Class 0 → Mean: {mean0:.4f}, Std: {std0:.4f}")
         else:
             print(f"(Skipping stats for '{feat}' — missing in describe tables)")
@@ -38,10 +40,7 @@ def eda_plots_with_stats(df: pd.DataFrame, title_prefix: str = ""):
 
         # PDF (KDE) — handle NaNs automatically
         try:
-            sns.kdeplot(
-                data=df, x=feat, hue="class",
-                common_norm=False, ax=ax[0]
-            )
+            sns.kdeplot(data=df, x=feat, hue="class", common_norm=False, ax=ax[0])
             ax[0].set_title("PDF (KDE)")
         except Exception as e:
             ax[0].set_title("PDF (KDE) — error")
@@ -50,8 +49,12 @@ def eda_plots_with_stats(df: pd.DataFrame, title_prefix: str = ""):
         # CDF
         try:
             sns.kdeplot(
-                data=df, x=feat, hue="class",
-                common_norm=False, cumulative=True, ax=ax[1]
+                data=df,
+                x=feat,
+                hue="class",
+                common_norm=False,
+                cumulative=True,
+                ax=ax[1],
             )
             ax[1].set_title("CDF (KDE cumulative)")
         except Exception as e:

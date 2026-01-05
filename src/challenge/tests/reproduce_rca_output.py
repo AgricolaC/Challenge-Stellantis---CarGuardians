@@ -1,35 +1,43 @@
 import os
 import shutil
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from lightgbm import LGBMClassifier
+
 from challenge.rca.pipeline import run_rca_pipeline
+
 
 def verify_fix():
     print("--- Starting Verification ---")
-    
+
     # 1. Setup Dummy Data
     np.random.seed(42)
     n_samples = 200
     n_features = 10
-    X = pd.DataFrame(np.random.rand(n_samples, n_features), columns=[f"f{i}" for i in range(n_features)])
+    X = pd.DataFrame(
+        np.random.rand(n_samples, n_features),
+        columns=[f"f{i}" for i in range(n_features)],
+    )
     # Make f0 predictive
     y = (X["f0"] > 0.5).astype(int)
-    
+
     # 2. Train Dummy Model
     model = LGBMClassifier(random_state=42, verbose=-1)
     model.fit(X, y)
-    
+
     # 3. Define Output Config
     output_dir = "./test_rca_out"
     file_prefix = "test_run_"
-    
+
     # Clean up previous run
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
-        
+
     # 4. Run RCA Pipeline
-    print(f"Running RCA pipeline with output_dir='{output_dir}', file_prefix='{file_prefix}'...")
+    print(
+        f"Running RCA pipeline with output_dir='{output_dir}', file_prefix='{file_prefix}'..."
+    )
     try:
         run_rca_pipeline(model, X, y, output_dir=output_dir, file_prefix=file_prefix)
     except Exception as e:
@@ -52,9 +60,9 @@ def verify_fix():
         "surrogate_tree.png",
         "surrogate_rules.txt",
         "decision_matrix.csv",
-        "decision_matrix_radar_clean.png"
+        "decision_matrix_radar_clean.png",
     ]
-    
+
     missing = []
     print("\nChecking for files:")
     for f in expected_files:
@@ -64,13 +72,16 @@ def verify_fix():
         print(f"  {path}: {status}")
         if not exists:
             missing.append(path)
-            
+
     if not missing:
-        print("\nSUCCESS: All artifacts found directly in output_dir with correct prefix.")
+        print(
+            "\nSUCCESS: All artifacts found directly in output_dir with correct prefix."
+        )
         # Cleanup
         shutil.rmtree(output_dir)
     else:
         print(f"\nFAILURE: Missing {len(missing)} files.")
+
 
 if __name__ == "__main__":
     verify_fix()

@@ -1,12 +1,22 @@
-import shap
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import shap
 
-def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_artifacts=False, output_dir=".", file_prefix=""):
+
+def compute_shap_global(
+    model,
+    X,
+    y=None,
+    random_state=42,
+    max_rows=5000,
+    save_artifacts=False,
+    output_dir=".",
+    file_prefix="",
+):
     """
     Computes global SHAP values using TreeExplainer (optimized for tree models).
-    
+
     Args:
         model: Trained tree-based model (LGBM, XGB, etc.).
         X (pd.DataFrame): Data to explain (usually validation set).
@@ -16,7 +26,7 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
         save_artifacts (bool): Whether to save plots/CSVs.
         output_dir (str): Directory to save artifacts.
         file_prefix (str): Prefix for artifact filenames.
-        
+
     Returns:
         tuple: (shap_values, X_sampled, global_importance_df)
     """
@@ -38,12 +48,14 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X_shap)
     except Exception as e:
-        print(f"[SHAP] TreeExplainer failed: {e}. Falling back to default TreeExplainer settings.")
+        print(
+            f"[SHAP] TreeExplainer failed: {e}. Falling back to default TreeExplainer settings."
+        )
         # Sometimes feature_perturbation needs to be set explicitly
         explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
         shap_values = explainer.shap_values(X_shap)
 
-    # For binary classification, shap_values is often a list [shap_neg, shap_pos]. 
+    # For binary classification, shap_values is often a list [shap_neg, shap_pos].
     # Use index 1 for positive class.
     if isinstance(shap_values, list):
         shap_pos = shap_values[1]
@@ -64,8 +76,9 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
 
     if save_artifacts:
         import os
+
         os.makedirs(output_dir, exist_ok=True)
-        
+
         csv_path = os.path.join(output_dir, f"{file_prefix}shap_global_importance.csv")
         global_importance.to_csv(csv_path, index=False)
         print(f"Saved: {csv_path}")
@@ -85,13 +98,17 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
         plt.savefig(bee_path, dpi=180, bbox_inches="tight")
         plt.close()
         print(f"Saved: {bar_path}, {bee_path}")
-        
+
         # Dependence Plots for Top 3
         topk = global_importance["feature"].head(3).tolist()
         for i, f in enumerate(topk, 1):
-            shap.dependence_plot(f, shap_pos, X_shap, show=False, interaction_index=None)
+            shap.dependence_plot(
+                f, shap_pos, X_shap, show=False, interaction_index=None
+            )
             plt.tight_layout()
-            outpath = os.path.join(output_dir, f"{file_prefix}shap_dependence_{i}_{f}.png")
+            outpath = os.path.join(
+                output_dir, f"{file_prefix}shap_dependence_{i}_{f}.png"
+            )
             plt.savefig(outpath, dpi=180, bbox_inches="tight")
             plt.close()
             print("Saved:", outpath)
@@ -99,62 +116,69 @@ def compute_shap_global(model, X, y=None, random_state=42, max_rows=5000, save_a
     return shap_pos, X_shap, global_importance
 
 
-def compute_shap_local(model, X_shap, shap_values, threshold, top_k=5, output_dir=".", file_prefix=""):
+def compute_shap_local(
+    model, X_shap, shap_values, threshold, top_k=5, output_dir=".", file_prefix=""
+):
     """
     Generates local explanations for top high-risk samples.
-    
+
     Args:
         model: Trained model (for probability).
         X_shap (pd.DataFrame): Data used for SHAP (must match rows of shap_values).
         shap_values (np.array): SHAP matrix (N, M).
         threshold (float): Decision threshold.
         top_k (int): Number of high-risk samples to explain.
-        
+
     Returns:
         pd.DataFrame: Local explanation table.
     """
     proba = model.predict_proba(X_shap)[:, 1]
-    
+
     # Identify high risk samples (proba >= threshold)
     # Filter only those that are predicted positive
     data = pd.DataFrame({"proba": proba}, index=X_shap.index)
-    
+
     # We want samples with highest probability that exceed threshold
-    high_risk_candidates = data[data["proba"] >= threshold].sort_values("proba", ascending=False)
+    high_risk_candidates = data[data["proba"] >= threshold].sort_values(
+        "proba", ascending=False
+    )
     highrisk_idx = high_risk_candidates.index[:top_k].tolist()
-    
+
     if len(highrisk_idx) == 0:
         print("[SHAP] No samples found above threshold for local explanation.")
         return pd.DataFrame()
 
     local_tables = []
-    
+
     for ridx in highrisk_idx:
         # Find integer location for SHAP array
         loc_idx = X_shap.index.get_loc(ridx)
-        
+
         # Determine top contributing features for this row
         shap_row = shap_values[loc_idx]
         feature_vals = X_shap.loc[ridx]
-        
+
         # Sort by absolute SHAP impact
-        order = np.argsort(-np.abs(shap_row))[:8] # Top 8 features per row
-        
-        row_tbl = pd.DataFrame({
-            "feature": feature_vals.index[order],
-            "value": feature_vals.values[order],
-            "shap": shap_row[order]
-        })
-        
+        order = np.argsort(-np.abs(shap_row))[:8]  # Top 8 features per row
+
+        row_tbl = pd.DataFrame(
+            {
+                "feature": feature_vals.index[order],
+                "value": feature_vals.values[order],
+                "shap": shap_row[order],
+            }
+        )
+
         row_tbl.insert(0, "row_id", ridx)
         row_tbl.insert(1, "proba", data.loc[ridx, "proba"])
         local_tables.append(row_tbl)
 
     local_explanations = pd.concat(local_tables, ignore_index=True)
     import os
+
     os.makedirs(output_dir, exist_ok=True)
     outpath = os.path.join(output_dir, f"{file_prefix}shap_local_top_contributors.csv")
     local_explanations.to_csv(outpath, index=False)
     print(f"Saved: {outpath}")
-    
+
     return local_explanations
